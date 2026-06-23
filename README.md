@@ -116,14 +116,17 @@ degrades gracefully and the header shows `agent offline`. The macOS sandbox
 needs the `com.apple.security.network.client` entitlement (already set) to reach
 localhost.
 
-This is the minimal agent loop: a grounded conversational turn over a local
-model. The next step is tool-calling — letting the agent emit structured stage
-artifacts (a `scene_plan`) that drive the timeline directly.
+Beyond chat, the agent also produces **structured output**: typing a brief on the
+home screen and pressing **Create** asks the local model for a JSON scene plan
+(`AgentService.planScenes`), which is parsed into scenes that drive the studio's
+timeline, preview, and inspector. If the model is unreachable or the response
+isn't usable, the studio opens with the sample plan instead.
 
 ## Roadmap
 
-1. **Agent tool-calling** — let the local/cloud agent emit structured pipeline
-   artifacts (scene plans, edit decisions) that drive the UI, not just chat.
+1. **Agent tool-calling** — extend structured output from scene plans to the
+   rest of the pipeline (edit decisions, asset prompts), with the approval gates
+   feeding results back to the agent. (Started: brief → scene_plan.)
 2. **Engine bridge** — reach cloud and local generators uniformly over `localhost`
    endpoints, so online/offline is just "which endpoint." (Started: Ollama.)
 3. **Live preview** — embed a real renderer instead of the placeholder.

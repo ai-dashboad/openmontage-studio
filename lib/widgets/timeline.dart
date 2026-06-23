@@ -8,11 +8,15 @@ import '../theme/app_theme.dart';
 class Timeline extends StatelessWidget {
   const Timeline({
     super.key,
+    required this.scenes,
+    required this.totalSeconds,
     required this.selectedSceneIndex,
     required this.playheadSeconds,
     required this.onSelectScene,
   });
 
+  final List<Scene> scenes;
+  final double totalSeconds;
   final int selectedSceneIndex;
   final double playheadSeconds;
   final ValueChanged<int> onSelectScene;
@@ -33,6 +37,8 @@ class Timeline extends StatelessWidget {
           const SizedBox(height: 10),
           Expanded(
             child: _SceneTrack(
+              scenes: scenes,
+              totalSeconds: totalSeconds,
               selectedIndex: selectedSceneIndex,
               playheadSeconds: playheadSeconds,
               onSelect: onSelectScene,
@@ -86,11 +92,15 @@ class _StageTrack extends StatelessWidget {
 
 class _SceneTrack extends StatelessWidget {
   const _SceneTrack({
+    required this.scenes,
+    required this.totalSeconds,
     required this.selectedIndex,
     required this.playheadSeconds,
     required this.onSelect,
   });
 
+  final List<Scene> scenes;
+  final double totalSeconds;
   final int selectedIndex;
   final double playheadSeconds;
   final ValueChanged<int> onSelect;
@@ -100,16 +110,16 @@ class _SceneTrack extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final playheadX = (playheadSeconds / MockProject.totalSeconds) * width;
+        final playheadX = (playheadSeconds / totalSeconds) * width;
         return Stack(
           children: [
             Row(
               children: [
-                for (var i = 0; i < MockProject.scenes.length; i++)
+                for (var i = 0; i < scenes.length; i++)
                   Expanded(
-                    flex: (MockProject.scenes[i].durationSeconds * 10).round(),
+                    flex: (scenes[i].durationSeconds * 10).round(),
                     child: _SceneBlock(
-                      scene: MockProject.scenes[i],
+                      scene: scenes[i],
                       selected: i == selectedIndex,
                       onTap: () => onSelect(i),
                     ),

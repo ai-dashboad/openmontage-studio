@@ -74,6 +74,30 @@ void main() {
     expect(find.textContaining('Composition 3/3'), findsOneWidget);
   });
 
+  testWidgets('a brief generates a plan that drives the studio', (
+    tester,
+  ) async {
+    const planJson =
+        '[{"title":"Cosmic Hook","type":"hero_title","seconds":4,'
+        '"headline":"Black Holes","subtitle":"intro"},'
+        '{"title":"Event Horizon","type":"text_card","seconds":6,'
+        '"headline":"The point of no return","subtitle":"why"},'
+        '{"title":"Close","type":"text_card","seconds":4,'
+        '"headline":"Look up","subtitle":"end"}]';
+    await _boot(tester, agent: _mockAgent(reply: planJson));
+
+    await tester.enterText(
+      find.byType(TextField).first,
+      'a 30s explainer on black holes',
+    );
+    await tester.tap(find.text('Create'));
+    await tester.pumpAndSettle();
+
+    // The studio is driven by the agent's generated scenes, not the sample.
+    expect(find.text('Cosmic Hook'), findsWidgets);
+    expect(find.text('Megacities'), findsNothing);
+  });
+
   testWidgets('selecting a scene updates the inspector', (tester) async {
     await _boot(tester);
     await _enterStudio(tester);

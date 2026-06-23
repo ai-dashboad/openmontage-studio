@@ -1,19 +1,60 @@
 import 'package:flutter/material.dart';
 import '../models/catalog.dart';
 import '../models/studio_models.dart';
+import '../services/agent_service.dart';
 import '../theme/app_theme.dart';
 
 /// The launcher: a brief composer to start a video, a capability dashboard, and
 /// recent projects. This is the "what can you do" entry point.
-class HomeScreen extends StatelessWidget {
+///
+/// Submitting a brief asks the agent to draft a scene plan; [onOpenProject] is
+/// called with that plan (or null to open the sample) and opens the studio.
+class HomeScreen extends StatefulWidget {
   const HomeScreen({
     super.key,
+    required this.agent,
     required this.onOpenProject,
     required this.onOpenSettings,
   });
 
-  final VoidCallback onOpenProject;
+  final AgentService agent;
+  final ValueChanged<List<Scene>?> onOpenProject;
   final VoidCallback onOpenSettings;
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final TextEditingController _brief = TextEditingController();
+  bool _planning = false;
+
+  @override
+  void dispose() {
+    _brief.dispose();
+    super.dispose();
+  }
+
+  Future<void> _create() async {
+    final brief = _brief.text.trim();
+    // No brief, or already working: open the sample project.
+    if (brief.isEmpty) {
+      widget.onOpenProject(null);
+      return;
+    }
+    setState(() => _planning = true);
+    try {
+      final scenes = await widget.agent.planScenes(brief);
+      if (!mounted) return;
+      widget.onOpenProject(scenes);
+    } catch (_) {
+      // Agent unreachable or unparseable — fall back to the sample plan.
+      if (!mounted) return;
+      widget.onOpenProject(null);
+    } finally {
+      if (mounted) setState(() => _planning = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,9 +65,13 @@ class HomeScreen extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 36),
             children: [
-              _Header(onOpenSettings: onOpenSettings),
+              _Header(onOpenSettings: widget.onOpenSettings),
               const SizedBox(height: 28),
-              _NewProjectCard(onCreate: onOpenProject),
+              _NewProjectCard(
+                controller: _brief,
+                planning: _planning,
+                onCreate: _create,
+              ),
               const SizedBox(height: 32),
               const _SectionLabel('Your capabilities'),
               const SizedBox(height: 12),
@@ -34,7 +79,7 @@ class HomeScreen extends StatelessWidget {
               const SizedBox(height: 32),
               const _SectionLabel('Recent'),
               const SizedBox(height: 12),
-              _RecentList(onOpen: onOpenProject),
+              _RecentList(onOpen: () => widget.onOpenProject(null)),
             ],
           ),
         ),
@@ -86,7 +131,13 @@ class _Header extends StatelessWidget {
 }
 
 class _NewProjectCard extends StatelessWidget {
-  const _NewProjectCard({required this.onCreate});
+  const _NewProjectCard({
+    required this.controller,
+    required this.planning,
+    required this.onCreate,
+  });
+  final TextEditingController controller;
+  final bool planning;
   final VoidCallback onCreate;
 
   @override
@@ -125,12 +176,15 @@ class _NewProjectCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(color: AppColors.border),
                   ),
-                  child: const TextField(
-                    style: TextStyle(
+                  child: TextField(
+                    controller: controller,
+                    enabled: !planning,
+                    onSubmitted: (_) => onCreate(),
+                    style: const TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 14,
                     ),
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       isDense: true,
                       border: InputBorder.none,
                       hintText:
@@ -145,9 +199,18 @@ class _NewProjectCard extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               FilledButton.icon(
-                onPressed: onCreate,
-                icon: const Icon(Icons.auto_awesome, size: 18),
-                label: const Text('Create'),
+                onPressed: planning ? null : onCreate,
+                icon: planning
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.background,
+                        ),
+                      )
+                    : const Icon(Icons.auto_awesome, size: 18),
+                label: Text(planning ? 'Planning…' : 'Create'),
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.accentCyan,
                   foregroundColor: AppColors.background,

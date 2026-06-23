@@ -1,4 +1,7 @@
+import 'dart:convert';
+import 'package:flutter/material.dart';
 import '../models/studio_models.dart';
+import '../theme/app_theme.dart';
 import 'ollama_client.dart';
 
 /// Live connection state for the agent, surfaced in the chat header.
@@ -45,5 +48,74 @@ Speak as a collaborator, not a chatbot. Keep replies under 120 words.''';
         },
     ];
     return _ollama.chat(messages);
+  }
+
+  static const String _planPrompt = '''
+You turn a one-line video brief into a scene plan for OpenMontage Studio.
+Respond with ONLY a JSON array (no prose, no markdown fences) of 4 to 6 scenes.
+Each scene is an object with these fields:
+  "title":    short label (e.g. "Hook", "Stat", "Close")
+  "type":     one of hero_title, stat_card, bar_chart, pie_chart, text_card
+  "seconds":  number, the scene duration (total across scenes ~20-30s)
+  "headline": the main on-screen line
+  "subtitle": a short supporting line
+Start with a hero_title hook and end with a text_card close.''';
+
+  /// Turns a one-line [brief] into a structured scene plan via the local model.
+  /// Throws if the model is unreachable or returns no usable plan; callers can
+  /// fall back to a default plan.
+  Future<List<Scene>> planScenes(String brief) async {
+    final text = await _ollama.chat([
+      {'role': 'system', 'content': _planPrompt},
+      {'role': 'user', 'content': 'Brief: $brief'},
+    ]);
+    final scenes = _parseScenes(text);
+    if (scenes.isEmpty) {
+      throw const OllamaException('Model returned no usable scene plan');
+    }
+    return scenes;
+  }
+
+  static const List<Color> _accents = [
+    AppColors.accentCyan,
+    AppColors.accentPurple,
+    AppColors.accentAmber,
+    AppColors.accentGreen,
+  ];
+
+  /// Extracts the JSON array from a model response (tolerating wrapping prose
+  /// or code fences) and maps it to [Scene]s with cumulative timings.
+  List<Scene> _parseScenes(String text) {
+    final start = text.indexOf('[');
+    final end = text.lastIndexOf(']');
+    if (start < 0 || end <= start) return const [];
+    final List<dynamic> raw;
+    try {
+      raw = jsonDecode(text.substring(start, end + 1)) as List<dynamic>;
+    } catch (_) {
+      return const [];
+    }
+    final scenes = <Scene>[];
+    var cursor = 0.0;
+    for (var i = 0; i < raw.length; i++) {
+      if (raw[i] is! Map) continue;
+      final m = raw[i] as Map<String, dynamic>;
+      final seconds =
+          (m['seconds'] as num?)?.toDouble().clamp(1.0, 15.0) ?? 4.0;
+      scenes.add(
+        Scene(
+          id: 'gen_$i',
+          type: (m['type'] as String?) ?? 'text_card',
+          title: (m['title'] as String?) ?? 'Scene ${i + 1}',
+          startSeconds: cursor,
+          endSeconds: cursor + seconds,
+          accent: _accents[i % _accents.length],
+          headline: (m['headline'] as String?) ?? '',
+          subtitle: (m['subtitle'] as String?) ?? '',
+        ),
+      );
+      cursor += seconds;
+    }
+    return scenes;
   }
 }

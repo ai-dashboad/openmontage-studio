@@ -10,11 +10,13 @@ class PreviewStage extends StatelessWidget {
     super.key,
     required this.scene,
     required this.playheadSeconds,
+    required this.totalSeconds,
     required this.onScrub,
   });
 
   final Scene scene;
   final double playheadSeconds;
+  final double totalSeconds;
   final ValueChanged<double> onScrub;
 
   @override
@@ -33,7 +35,11 @@ class PreviewStage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          _Transport(playheadSeconds: playheadSeconds, onScrub: onScrub),
+          _Transport(
+            playheadSeconds: playheadSeconds,
+            totalSeconds: totalSeconds,
+            onScrub: onScrub,
+          ),
         ],
       ),
     );
@@ -132,8 +138,13 @@ class _TypeTag extends StatelessWidget {
 }
 
 class _Transport extends StatelessWidget {
-  const _Transport({required this.playheadSeconds, required this.onScrub});
+  const _Transport({
+    required this.playheadSeconds,
+    required this.totalSeconds,
+    required this.onScrub,
+  });
   final double playheadSeconds;
+  final double totalSeconds;
   final ValueChanged<double> onScrub;
 
   String _fmt(double s) {
@@ -170,14 +181,14 @@ class _Transport extends StatelessWidget {
               overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
             ),
             child: Slider(
-              value: playheadSeconds.clamp(0, MockProject.totalSeconds),
-              max: MockProject.totalSeconds,
+              value: playheadSeconds.clamp(0, totalSeconds),
+              max: totalSeconds,
               onChanged: onScrub,
             ),
           ),
         ),
         Text(
-          _fmt(MockProject.totalSeconds),
+          _fmt(totalSeconds),
           style: AppTheme.mono.copyWith(
             color: AppColors.textMuted,
             fontSize: 12,

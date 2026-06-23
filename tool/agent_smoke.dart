@@ -31,4 +31,22 @@ Future<void> main() async {
   ]);
   // ignore: avoid_print
   print('--- agent reply ---\n$reply');
+
+  // Structured plan path: does the model return a parseable JSON array?
+  final plan = await client.chat(const [
+    {
+      'role': 'system',
+      'content':
+          'Turn the brief into a scene plan. Respond with ONLY a JSON array of '
+          'objects with fields title, type, seconds, headline, subtitle.',
+    },
+    {'role': 'user', 'content': 'Brief: a 30s explainer on black holes'},
+  ]);
+  final start = plan.indexOf('[');
+  final end = plan.lastIndexOf(']');
+  final ok = start >= 0 && end > start;
+  // ignore: avoid_print
+  print(
+    '--- plan json detected=$ok ---\n${plan.substring(0, plan.length.clamp(0, 400))}',
+  );
 }

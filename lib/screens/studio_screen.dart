@@ -17,11 +17,16 @@ class StudioScreen extends StatefulWidget {
   const StudioScreen({
     super.key,
     required this.agent,
+    this.scenes = MockProject.scenes,
     this.onHome,
     this.onOpenSettings,
   });
 
   final AgentService agent;
+
+  /// The scene plan driving the editor — defaults to the sample, or an
+  /// agent-generated plan passed in from the home brief.
+  final List<Scene> scenes;
   final VoidCallback? onHome;
   final VoidCallback? onOpenSettings;
 
@@ -30,13 +35,24 @@ class StudioScreen extends StatefulWidget {
 }
 
 class _StudioScreenState extends State<StudioScreen> {
-  int _selectedScene = 1;
+  int _selectedScene = 0;
   int _railIndex = 4; // Start on the agent chat.
   bool _isOnline = true;
   bool _panelOpen = true;
 
   /// The chat entry sits after the four asset families in the rail.
   static const int _chatIndex = 4;
+
+  List<Scene> get _scenes => widget.scenes;
+  double get _total => _scenes.last.endSeconds;
+
+  @override
+  void initState() {
+    super.initState();
+    // Prefer the second scene as the initial selection when available.
+    _selectedScene = _scenes.length > 1 ? 1 : 0;
+    _playhead = _scenes[_selectedScene].startSeconds;
+  }
 
   void _onRailSelect(int index) {
     setState(() {
@@ -50,15 +66,15 @@ class _StudioScreenState extends State<StudioScreen> {
     });
   }
 
-  Scene get _scene => MockProject.scenes[_selectedScene];
+  Scene get _scene => _scenes[_selectedScene];
 
   /// Playhead follows scene selection by snapping to that scene's in-point.
-  double _playhead = MockProject.scenes[1].startSeconds;
+  late double _playhead;
 
   void _selectScene(int index) {
     setState(() {
       _selectedScene = index;
-      _playhead = MockProject.scenes[index].startSeconds;
+      _playhead = _scenes[index].startSeconds;
     });
   }
 
@@ -66,8 +82,8 @@ class _StudioScreenState extends State<StudioScreen> {
     setState(() {
       _playhead = seconds;
       // Keep the selected scene in sync with where the playhead lands.
-      for (var i = 0; i < MockProject.scenes.length; i++) {
-        final s = MockProject.scenes[i];
+      for (var i = 0; i < _scenes.length; i++) {
+        final s = _scenes[i];
         if (seconds >= s.startSeconds && seconds < s.endSeconds) {
           _selectedScene = i;
           break;
@@ -117,6 +133,7 @@ class _StudioScreenState extends State<StudioScreen> {
                   child: PreviewStage(
                     scene: _scene,
                     playheadSeconds: _playhead,
+                    totalSeconds: _total,
                     onScrub: _scrub,
                   ),
                 ),
@@ -129,6 +146,8 @@ class _StudioScreenState extends State<StudioScreen> {
             ),
           ),
           Timeline(
+            scenes: _scenes,
+            totalSeconds: _total,
             selectedSceneIndex: _selectedScene,
             playheadSeconds: _playhead,
             onSelectScene: _selectScene,
