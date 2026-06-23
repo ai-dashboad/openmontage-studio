@@ -16,5 +16,7 @@ CREATE TABLE IF NOT EXISTS users (
   marketing_source  TEXT,   -- how they heard about us (acquisition channel)
   use_case          TEXT,   -- what they want to make (segmentation)
   country           TEXT,   -- from Cloudflare request geo
-  locale            TEXT
+  locale            TEXT,
+  oauth_provider    TEXT,   -- 'google' | 'github' for third-party sign-in
+  oauth_id          TEXT
 );

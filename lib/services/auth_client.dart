@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:http/http.dart' as http;
 
 /// An authenticated account.
@@ -110,6 +111,38 @@ class AuthClient {
       throw AuthException((json['error'] as String?) ?? 'update failed');
     }
     return Account.fromJson(json['user'] as Map<String, dynamic>);
+  }
+
+  // ---- third-party (OAuth) sign-in ----
+
+  /// A fresh random state to tie a browser flow to this app instance.
+  static String newOAuthState() {
+    final r = Random.secure();
+    return List.generate(
+      24,
+      (_) => r.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ).join();
+  }
+
+  /// The URL to open in the system browser to start [provider] sign-in.
+  Uri oauthStartUri(String provider, String state) =>
+      Uri.parse('$baseUrl/auth/oauth/$provider/start?state=$state');
+
+  /// Polls for the OAuth result. Returns the [Session] once the browser flow
+  /// completes, or null while it's still pending.
+  Future<Session?> pollOAuth(String state) async {
+    final res = await _http
+        .get(Uri.parse('$baseUrl/auth/oauth/exchange?state=$state'))
+        .timeout(const Duration(seconds: 15));
+    if (res.statusCode == 202) return null; // pending
+    final json = jsonDecode(res.body) as Map<String, dynamic>;
+    if (res.statusCode != 200) {
+      throw AuthException((json['error'] as String?) ?? 'sign-in failed');
+    }
+    return Session(
+      token: json['token'] as String,
+      account: Account.fromJson(json['user'] as Map<String, dynamic>),
+    );
   }
 
   /// Resolves the account for a session token, or null if it's invalid.

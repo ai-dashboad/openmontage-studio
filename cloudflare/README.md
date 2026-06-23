@@ -38,6 +38,44 @@ Bindings (already created, see `wrangler.toml`):
 - D1 database `openmontage-auth` → binding `DB`
 - KV namespace `SESSIONS` → binding `SESSIONS`
 
+## Third-party sign-in (Google + GitHub)
+
+The Worker handles OAuth; the client secret stays here (never in the app). The
+desktop app opens the browser, the provider redirects to the Worker, and the app
+polls `/auth/oauth/exchange?state=...` for the session.
+
+**Callback URL** (register this exactly in each provider console):
+
+```
+https://openmontage-auth.272876047.workers.dev/auth/oauth/github/callback
+https://openmontage-auth.272876047.workers.dev/auth/oauth/google/callback
+```
+
+**1. Create the OAuth apps**
+
+- **GitHub** → Settings → Developer settings → OAuth Apps → New. Set the callback
+  URL above. Copy the Client ID and generate a Client Secret.
+- **Google** → Google Cloud Console → APIs & Services → Credentials → Create
+  OAuth client ID (type: Web application). Add the callback URL as an authorized
+  redirect URI. Configure the OAuth consent screen. Copy the Client ID/Secret.
+
+**2. Store them as Worker secrets** (from `cloudflare/`, with the env loaded):
+
+```bash
+set -a; source .env; set +a
+npx wrangler secret put GITHUB_CLIENT_ID
+npx wrangler secret put GITHUB_CLIENT_SECRET
+npx wrangler secret put GOOGLE_CLIENT_ID
+npx wrangler secret put GOOGLE_CLIENT_SECRET
+```
+
+Until both halves of a provider are set, `/auth/oauth/<provider>/start` returns
+`provider not configured` and the button simply won't work — no redeploy needed
+once the secrets are in.
+
+OAuth accounts are created with no password and `marketing_consent = 0` (the user
+never saw the opt-in), which they can change later in settings.
+
 ## Security & privacy notes
 
 - **Rotate the deploy token** if it has been exposed; it only needs Workers

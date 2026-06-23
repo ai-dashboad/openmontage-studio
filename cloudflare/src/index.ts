@@ -22,6 +22,12 @@
 export interface Env {
   DB: D1Database;
   SESSIONS: KVNamespace;
+  // OAuth credentials (set via `wrangler secret put`). Optional so the Worker
+  // deploys before they're configured; a provider is "off" until both are set.
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
+  GITHUB_CLIENT_ID?: string;
+  GITHUB_CLIENT_SECRET?: string;
 }
 
 interface UserRow {
@@ -37,6 +43,8 @@ interface UserRow {
   use_case: string | null;
   country: string | null;
   locale: string | null;
+  oauth_provider: string | null;
+  oauth_id: string | null;
 }
 
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
@@ -282,6 +290,199 @@ async function logout(request: Request, env: Env): Promise<Response> {
   return json({ ok: true });
 }
 
+// ---- third-party (OAuth) sign-in: Google + GitHub ----
+//
+// Desktop flow: the app opens /auth/oauth/<provider>/start?state=S, the provider
+// redirects back to /callback, the Worker exchanges the code (client secret stays
+// here), upserts the user, mints a session, and stashes it under the state. The
+// app then polls /auth/oauth/exchange?state=S to collect the session.
+
+const OAUTH_BASE =
+  'https://openmontage-auth.272876047.workers.dev/auth/oauth';
+
+interface OAuthProfile {
+  providerId: string;
+  email: string | null;
+  name: string | null;
+}
+
+interface OAuthProvider {
+  authorizeUrl: string;
+  tokenUrl: string;
+  scope: string;
+  id(env: Env): string | undefined;
+  secret(env: Env): string | undefined;
+  profile(accessToken: string): Promise<OAuthProfile>;
+}
+
+const PROVIDERS: Record<string, OAuthProvider> = {
+  google: {
+    authorizeUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
+    tokenUrl: 'https://oauth2.googleapis.com/token',
+    scope: 'openid email profile',
+    id: (e) => e.GOOGLE_CLIENT_ID,
+    secret: (e) => e.GOOGLE_CLIENT_SECRET,
+    async profile(token) {
+      const r = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const j = (await r.json()) as Record<string, unknown>;
+      return {
+        providerId: String(j.sub),
+        email: (j.email as string) ?? null,
+        name: (j.name as string) ?? null,
+      };
+    },
+  },
+  github: {
+    authorizeUrl: 'https://github.com/login/oauth/authorize',
+    tokenUrl: 'https://github.com/login/oauth/access_token',
+    scope: 'read:user user:email',
+    id: (e) => e.GITHUB_CLIENT_ID,
+    secret: (e) => e.GITHUB_CLIENT_SECRET,
+    async profile(token) {
+      const headers = {
+        Authorization: `Bearer ${token}`,
+        'User-Agent': 'openmontage-auth',
+        Accept: 'application/vnd.github+json',
+      };
+      const u = (await (
+        await fetch('https://api.github.com/user', { headers })
+      ).json()) as Record<string, unknown>;
+      let email = (u.email as string) ?? null;
+      if (!email) {
+        const list = (await (
+          await fetch('https://api.github.com/user/emails', { headers })
+        ).json()) as Array<{ email: string; primary: boolean; verified: boolean }>;
+        const pick = list.find((e) => e.primary && e.verified) ??
+          list.find((e) => e.verified);
+        email = pick?.email ?? null;
+      }
+      return {
+        providerId: String(u.id),
+        email,
+        name: (u.name as string) ?? (u.login as string) ?? null,
+      };
+    },
+  },
+};
+
+function redirectUri(provider: string): string {
+  return `${OAUTH_BASE}/${provider}/callback`;
+}
+
+async function oauthStart(
+  provider: string,
+  request: Request,
+  env: Env,
+): Promise<Response> {
+  const cfg = PROVIDERS[provider];
+  const clientId = cfg?.id(env);
+  if (!cfg || !clientId) return json({ error: 'provider not configured' }, 400);
+  const state = new URL(request.url).searchParams.get('state');
+  if (!state) return json({ error: 'state is required' }, 400);
+
+  await env.SESSIONS.put(`oauthstate:${state}`, provider, { expirationTtl: 600 });
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri(provider),
+    response_type: 'code',
+    scope: cfg.scope,
+    state,
+  });
+  return Response.redirect(`${cfg.authorizeUrl}?${params.toString()}`, 302);
+}
+
+async function exchangeCode(
+  cfg: OAuthProvider,
+  provider: string,
+  code: string,
+  env: Env,
+): Promise<string | null> {
+  const res = await fetch(cfg.tokenUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+    body: new URLSearchParams({
+      client_id: cfg.id(env)!,
+      client_secret: cfg.secret(env)!,
+      code,
+      redirect_uri: redirectUri(provider),
+      grant_type: 'authorization_code',
+    }),
+  });
+  const j = (await res.json()) as Record<string, unknown>;
+  return (j.access_token as string) ?? null;
+}
+
+function htmlPage(message: string): Response {
+  return new Response(
+    `<!doctype html><meta charset="utf-8"><body style="font-family:system-ui;background:#0F172A;color:#E2E8F0;display:grid;place-items:center;height:100vh;margin:0"><div style="text-align:center"><h2>${message}</h2><p style="color:#94A3B8">You can return to OpenMontage Studio.</p></div></body>`,
+    { headers: { 'Content-Type': 'text/html; charset=utf-8' } },
+  );
+}
+
+async function oauthCallback(
+  provider: string,
+  request: Request,
+  env: Env,
+): Promise<Response> {
+  const cfg = PROVIDERS[provider];
+  if (!cfg || !cfg.secret(env)) return htmlPage('Sign-in failed: provider off');
+  const url = new URL(request.url);
+  const code = url.searchParams.get('code');
+  const state = url.searchParams.get('state');
+  if (!code || !state) return htmlPage('Sign-in failed: missing code');
+  const expected = await env.SESSIONS.get(`oauthstate:${state}`);
+  if (expected !== provider) return htmlPage('Sign-in failed: bad state');
+
+  const accessToken = await exchangeCode(cfg, provider, code, env);
+  if (!accessToken) return htmlPage('Sign-in failed: token exchange');
+  const profile = await cfg.profile(accessToken);
+  if (!profile.email) return htmlPage('Sign-in failed: no email from provider');
+
+  const email = profile.email.toLowerCase();
+  let row = await env.DB.prepare('SELECT * FROM users WHERE email = ?')
+    .bind(email)
+    .first<UserRow>();
+  const now = new Date().toISOString();
+  if (row) {
+    await env.DB.prepare(
+      'UPDATE users SET oauth_provider = ?, oauth_id = ?, last_login_at = ? WHERE id = ?',
+    )
+      .bind(provider, profile.providerId, now, row.id)
+      .run();
+  } else {
+    const id = crypto.randomUUID();
+    await env.DB.prepare(
+      `INSERT INTO users
+         (id, email, name, password_hash, created_at, last_login_at,
+          marketing_consent, country, oauth_provider, oauth_id)
+       VALUES (?, ?, ?, '', ?, ?, 0, ?, ?, ?)`,
+    )
+      .bind(id, email, profile.name, now, now, geoCountry(request), provider, profile.providerId)
+      .run();
+    row = await loadUser(env, id);
+  }
+
+  const token = await createSession(env, row!.id);
+  await env.SESSIONS.put(`oauthresult:${state}`, token, { expirationTtl: 300 });
+  await env.SESSIONS.delete(`oauthstate:${state}`);
+  return htmlPage('Signed in ✓');
+}
+
+// Polled by the app to collect the session once the browser flow completes.
+async function oauthExchange(request: Request, env: Env): Promise<Response> {
+  const state = new URL(request.url).searchParams.get('state');
+  if (!state) return json({ error: 'state is required' }, 400);
+  const token = await env.SESSIONS.get(`oauthresult:${state}`);
+  if (!token) return json({ pending: true }, 202);
+  await env.SESSIONS.delete(`oauthresult:${state}`); // one-time
+  const userId = await env.SESSIONS.get(`sess:${token}`);
+  const row = userId ? await loadUser(env, userId) : null;
+  if (!row) return json({ error: 'session expired' }, 410);
+  return json({ token, user: publicUser(row) });
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method === 'OPTIONS') {
@@ -307,6 +508,17 @@ export default {
       }
       if (method === 'POST' && pathname === '/auth/logout') {
         return await logout(request, env);
+      }
+      // OAuth: /auth/oauth/<provider>/start|callback and /auth/oauth/exchange
+      const oauth = pathname.match(/^\/auth\/oauth\/([a-z]+)\/(start|callback)$/);
+      if (method === 'GET' && oauth) {
+        const [, provider, action] = oauth;
+        return action === 'start'
+          ? await oauthStart(provider, request, env)
+          : await oauthCallback(provider, request, env);
+      }
+      if (method === 'GET' && pathname === '/auth/oauth/exchange') {
+        return await oauthExchange(request, env);
       }
       return json({ error: 'not found' }, 404);
     } catch (err) {

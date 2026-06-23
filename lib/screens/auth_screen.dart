@@ -1,5 +1,6 @@
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../services/auth_client.dart';
 import '../theme/app_theme.dart';
 
@@ -25,6 +26,7 @@ class AuthScreen extends StatefulWidget {
 class _AuthScreenState extends State<AuthScreen> {
   bool _register = false;
   bool _busy = false;
+  bool _oauthBusy = false;
   String? _error;
 
   final _email = TextEditingController();
@@ -91,6 +93,42 @@ class _AuthScreenState extends State<AuthScreen> {
       }
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Opens the browser for [provider] sign-in and polls for the result.
+  Future<void> _oauth(String provider) async {
+    if (_busy || _oauthBusy) return;
+    setState(() {
+      _oauthBusy = true;
+      _error = null;
+    });
+    final state = AuthClient.newOAuthState();
+    try {
+      final ok = await launchUrl(
+        widget.authClient.oauthStartUri(provider, state),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!ok) {
+        if (mounted) setState(() => _error = 'Could not open the browser.');
+        return;
+      }
+      for (var i = 0; i < 60; i++) {
+        if (!_oauthBusy || !mounted) return; // cancelled
+        await Future.delayed(const Duration(seconds: 2));
+        final session = await widget.authClient.pollOAuth(state);
+        if (session != null) {
+          widget.onAuthed(session);
+          return;
+        }
+      }
+      if (mounted) setState(() => _error = 'Sign-in timed out. Try again.');
+    } on AuthException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Could not complete sign-in.');
+    } finally {
+      if (mounted) setState(() => _oauthBusy = false);
     }
   }
 
@@ -212,6 +250,8 @@ class _AuthScreenState extends State<AuthScreen> {
                       style: const TextStyle(color: AppColors.textMuted),
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  _socialSection(),
                 ],
               ),
             ),
@@ -322,6 +362,91 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _socialSection() {
+    if (_oauthBusy) {
+      return Column(
+        children: [
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.accentCyan,
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Text(
+                'Waiting for the browser…',
+                style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+              ),
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: () => setState(() => _oauthBusy = false),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: AppColors.textFaint),
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+    return Column(
+      children: [
+        Row(
+          children: const [
+            Expanded(child: Divider(color: AppColors.border)),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 10),
+              child: Text(
+                'or continue with',
+                style: TextStyle(color: AppColors.textFaint, fontSize: 11),
+              ),
+            ),
+            Expanded(child: Divider(color: AppColors.border)),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _socialButton(
+                'GitHub',
+                Icons.code,
+                () => _oauth('github'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _socialButton(
+                'Google',
+                Icons.g_mobiledata,
+                () => _oauth('google'),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _socialButton(String label, IconData icon, VoidCallback onTap) {
+    return OutlinedButton.icon(
+      onPressed: _busy ? null : onTap,
+      icon: Icon(icon, size: 18, color: AppColors.textPrimary),
+      label: Text(label, style: const TextStyle(color: AppColors.textPrimary)),
+      style: OutlinedButton.styleFrom(
+        side: const BorderSide(color: AppColors.border),
+        padding: const EdgeInsets.symmetric(vertical: 12),
       ),
     );
   }

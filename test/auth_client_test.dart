@@ -53,6 +53,33 @@ void main() {
     );
   });
 
+  test('pollOAuth is null while pending and a session when ready', () async {
+    var pending = true;
+    final client = AuthClient(
+      httpClient: MockClient((req) async {
+        if (req.url.path.endsWith('/auth/oauth/exchange')) {
+          if (pending) {
+            pending = false;
+            return http.Response('{"pending":true}', 202);
+          }
+          return http.Response(
+            jsonEncode({
+              'token': 't2',
+              'user': {'id': 'u2', 'email': 'g@h.com'},
+            }),
+            200,
+          );
+        }
+        return http.Response('no', 404);
+      }),
+    );
+
+    expect(await client.pollOAuth('state'), isNull);
+    final session = await client.pollOAuth('state');
+    expect(session?.token, 't2');
+    expect(session?.account.email, 'g@h.com');
+  });
+
   test('me returns null for an invalid session', () async {
     final client = AuthClient(
       httpClient: MockClient(

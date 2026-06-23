@@ -290,6 +290,9 @@ void main() {
     // No session -> the sign-in screen, not the app.
     expect(find.text('Welcome back'), findsOneWidget);
     expect(find.text('Start a new video'), findsNothing);
+    // Third-party sign-in options are offered.
+    expect(find.text('GitHub'), findsOneWidget);
+    expect(find.text('Google'), findsOneWidget);
 
     await tester.enterText(find.byType(TextField).at(0), 'x@y.com');
     await tester.enterText(find.byType(TextField).at(1), 'supersecret1');

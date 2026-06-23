@@ -41,6 +41,9 @@ dependencies:
   # Persist the session token between launches.
   shared_preferences: ^2.3.0
 
+  # Open the system browser for third-party (OAuth) sign-in.
+  url_launcher: ^6.3.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
