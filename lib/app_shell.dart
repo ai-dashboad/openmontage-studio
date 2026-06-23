@@ -23,6 +23,7 @@ class AppShell extends StatefulWidget {
     this.account,
     this.onLogout,
     this.onSetConsent,
+    this.onResendVerification,
   });
 
   /// Injected in tests; default to live local providers.
@@ -32,6 +33,7 @@ class AppShell extends StatefulWidget {
   final Account? account;
   final VoidCallback? onLogout;
   final Future<void> Function(bool)? onSetConsent;
+  final Future<void> Function()? onResendVerification;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -76,6 +78,7 @@ class _AppShellState extends State<AppShell> {
         account: widget.account,
         onLogout: widget.onLogout,
         onSetConsent: widget.onSetConsent,
+        onResendVerification: widget.onResendVerification,
       ),
     };
   }

@@ -28,6 +28,10 @@ export interface Env {
   GOOGLE_CLIENT_SECRET?: string;
   GITHUB_CLIENT_ID?: string;
   GITHUB_CLIENT_SECRET?: string;
+  // Email sending (Resend). Optional: without a key, verification emails are
+  // simply not sent and accounts stay unverified.
+  RESEND_API_KEY?: string;
+  RESEND_FROM?: string;
 }
 
 interface UserRow {
@@ -45,6 +49,8 @@ interface UserRow {
   locale: string | null;
   oauth_provider: string | null;
   oauth_id: string | null;
+  email_verified: number;
+  verified_at: string | null;
 }
 
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
@@ -151,6 +157,7 @@ function publicUser(row: UserRow) {
     marketing_source: row.marketing_source,
     use_case: row.use_case,
     country: row.country,
+    email_verified: row.email_verified === 1,
   };
 }
 
@@ -176,6 +183,52 @@ async function rateLimit(
   if (count >= limit) return false;
   await env.SESSIONS.put(k, String(count + 1), { expirationTtl: windowSec });
   return true;
+}
+
+// ---- email (Resend) + verification ----
+
+const VERIFY_BASE =
+  'https://openmontage-auth.272876047.workers.dev/auth/verify';
+
+async function sendEmail(
+  env: Env,
+  to: string,
+  subject: string,
+  html: string,
+): Promise<boolean> {
+  if (!env.RESEND_API_KEY) return false; // not configured — skip silently
+  const from = env.RESEND_FROM ?? 'OpenMontage Studio <onboarding@resend.dev>';
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${env.RESEND_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ from, to: [to], subject, html }),
+  });
+  return res.ok;
+}
+
+async function sendVerification(
+  env: Env,
+  userId: string,
+  email: string,
+): Promise<void> {
+  const token = toHex(crypto.getRandomValues(new Uint8Array(24)));
+  await env.SESSIONS.put(`verify:${token}`, userId, { expirationTtl: 86400 });
+  const link = `${VERIFY_BASE}?token=${token}`;
+  await sendEmail(
+    env,
+    email,
+    'Confirm your OpenMontage Studio email',
+    `<div style="font-family:system-ui;max-width:480px;margin:auto">
+       <h2>Welcome to OpenMontage Studio</h2>
+       <p>Confirm this email address to finish setting up your account:</p>
+       <p><a href="${link}" style="display:inline-block;background:#22D3EE;color:#0F172A;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">Verify email</a></p>
+       <p style="color:#64748B;font-size:13px">Or paste this link: ${link}</p>
+       <p style="color:#64748B;font-size:13px">This link expires in 24 hours. If you didn't sign up, ignore this email.</p>
+     </div>`,
+  );
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -237,6 +290,7 @@ async function register(request: Request, env: Env): Promise<Response> {
     )
     .run();
 
+  await sendVerification(env, id, email);
   const token = await createSession(env, id);
   const row = await loadUser(env, id);
   return json({ token, user: publicUser(row!) });
@@ -318,6 +372,35 @@ async function updateProfile(request: Request, env: Env): Promise<Response> {
 async function logout(request: Request, env: Env): Promise<Response> {
   const token = bearer(request);
   if (token) await env.SESSIONS.delete(`sess:${token}`);
+  return json({ ok: true });
+}
+
+// Clicked from the verification email.
+async function verifyEmail(request: Request, env: Env): Promise<Response> {
+  const token = new URL(request.url).searchParams.get('token');
+  if (!token) return htmlPage('Invalid verification link');
+  const userId = await env.SESSIONS.get(`verify:${token}`);
+  if (!userId) return htmlPage('This link is invalid or has expired');
+  await env.DB.prepare(
+    'UPDATE users SET email_verified = 1, verified_at = ? WHERE id = ?',
+  )
+    .bind(new Date().toISOString(), userId)
+    .run();
+  await env.SESSIONS.delete(`verify:${token}`);
+  return htmlPage('Email verified ✓');
+}
+
+// Re-send the verification email for the signed-in user.
+async function resendVerification(request: Request, env: Env): Promise<Response> {
+  const userId = await userIdFromSession(request, env);
+  if (!userId) return json({ error: 'invalid session' }, 401);
+  const row = await loadUser(env, userId);
+  if (!row) return json({ error: 'user not found' }, 404);
+  if (row.email_verified === 1) return json({ ok: true, already_verified: true });
+  if (!(await rateLimit(env, `resend:${userId}`, 5, 3600))) {
+    return json({ error: 'too many requests, try again later' }, 429);
+  }
+  await sendVerification(env, row.id, row.email);
   return json({ ok: true });
 }
 
@@ -487,10 +570,21 @@ async function oauthCallback(
     await env.DB.prepare(
       `INSERT INTO users
          (id, email, name, password_hash, created_at, last_login_at,
-          marketing_consent, country, oauth_provider, oauth_id)
-       VALUES (?, ?, ?, '', ?, ?, 0, ?, ?, ?)`,
+          marketing_consent, country, oauth_provider, oauth_id,
+          email_verified, verified_at)
+       VALUES (?, ?, ?, '', ?, ?, 0, ?, ?, ?, 1, ?)`,
     )
-      .bind(id, email, profile.name, now, now, geoCountry(request), provider, profile.providerId)
+      .bind(
+        id,
+        email,
+        profile.name,
+        now,
+        now,
+        geoCountry(request),
+        provider,
+        profile.providerId,
+        now,
+      )
       .run();
     row = await loadUser(env, id);
   }
@@ -539,6 +633,12 @@ export default {
       }
       if (method === 'POST' && pathname === '/auth/logout') {
         return await logout(request, env);
+      }
+      if (method === 'GET' && pathname === '/auth/verify') {
+        return await verifyEmail(request, env);
+      }
+      if (method === 'POST' && pathname === '/auth/verify/resend') {
+        return await resendVerification(request, env);
       }
       // OAuth: /auth/oauth/<provider>/start|callback and /auth/oauth/exchange
       const oauth = pathname.match(/^\/auth\/oauth\/([a-z]+)\/(start|callback)$/);

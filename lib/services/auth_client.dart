@@ -13,6 +13,7 @@ class Account {
     this.marketingSource,
     this.useCase,
     this.country,
+    this.emailVerified = false,
   });
 
   final String id;
@@ -26,6 +27,9 @@ class Account {
   final String? useCase;
   final String? country;
 
+  /// Whether the email address has been confirmed.
+  final bool emailVerified;
+
   factory Account.fromJson(Map<String, dynamic> json) => Account(
     id: json['id'] as String,
     email: json['email'] as String,
@@ -35,6 +39,7 @@ class Account {
     marketingSource: json['marketing_source'] as String?,
     useCase: json['use_case'] as String?,
     country: json['country'] as String?,
+    emailVerified: json['email_verified'] == true,
   );
 }
 
@@ -156,6 +161,20 @@ class AuthClient {
     if (res.statusCode != 200) return null;
     final body = jsonDecode(res.body) as Map<String, dynamic>;
     return Account.fromJson(body['user'] as Map<String, dynamic>);
+  }
+
+  /// Asks the server to re-send the verification email for this session.
+  Future<void> resendVerification(String token) async {
+    final res = await _http
+        .post(
+          Uri.parse('$baseUrl/auth/verify/resend'),
+          headers: {'Authorization': 'Bearer $token'},
+        )
+        .timeout(const Duration(seconds: 15));
+    if (res.statusCode != 200) {
+      final json = jsonDecode(res.body) as Map<String, dynamic>;
+      throw AuthException((json['error'] as String?) ?? 'could not resend');
+    }
   }
 
   Future<void> logout(String token) async {

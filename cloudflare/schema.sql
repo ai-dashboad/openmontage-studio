@@ -18,5 +18,7 @@ CREATE TABLE IF NOT EXISTS users (
   country           TEXT,   -- from Cloudflare request geo
   locale            TEXT,
   oauth_provider    TEXT,   -- 'google' | 'github' for third-party sign-in
-  oauth_id          TEXT
+  oauth_id          TEXT,
+  email_verified    INTEGER NOT NULL DEFAULT 0,
+  verified_at       TEXT
 );

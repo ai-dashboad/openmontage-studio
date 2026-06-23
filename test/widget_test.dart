@@ -16,7 +16,11 @@ import 'package:openmontage_studio/services/render_client.dart';
 import 'package:openmontage_studio/services/tts_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-const _testAccount = Account(id: 'tester', email: 'tester@example.com');
+const _testAccount = Account(
+  id: 'tester',
+  email: 'tester@example.com',
+  emailVerified: true,
+);
 
 // The shell targets a minimum desktop window of 1100x720.
 const _desktop = Size(1280, 832);

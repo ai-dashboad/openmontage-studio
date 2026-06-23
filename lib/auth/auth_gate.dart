@@ -23,6 +23,7 @@ class AuthGate extends StatefulWidget {
     Account account,
     VoidCallback onLogout,
     Future<void> Function(bool) onSetConsent,
+    Future<void> Function() onResendVerification,
   )
   appBuilder;
 
@@ -100,6 +101,11 @@ class _AuthGateState extends State<AuthGate> {
     if (mounted) setState(() => _account = updated);
   }
 
+  Future<void> _resendVerification() async {
+    final token = _token;
+    if (token != null) await widget.authClient.resendVerification(token);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -113,6 +119,11 @@ class _AuthGateState extends State<AuthGate> {
     if (_account == null) {
       return AuthScreen(authClient: widget.authClient, onAuthed: _onAuthed);
     }
-    return widget.appBuilder(_account!, _logout, _setConsent);
+    return widget.appBuilder(
+      _account!,
+      _logout,
+      _setConsent,
+      _resendVerification,
+    );
   }
 }

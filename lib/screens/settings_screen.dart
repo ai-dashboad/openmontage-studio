@@ -13,12 +13,14 @@ class SettingsScreen extends StatelessWidget {
     this.account,
     this.onLogout,
     this.onSetConsent,
+    this.onResendVerification,
   });
 
   final VoidCallback onBack;
   final Account? account;
   final VoidCallback? onLogout;
   final Future<void> Function(bool)? onSetConsent;
+  final Future<void> Function()? onResendVerification;
 
   @override
   Widget build(BuildContext context) {
@@ -42,6 +44,7 @@ class SettingsScreen extends StatelessWidget {
                   account: account!,
                   onLogout: onLogout,
                   onSetConsent: onSetConsent,
+                  onResendVerification: onResendVerification,
                 ),
                 const SizedBox(height: 20),
               ],
@@ -63,10 +66,16 @@ class SettingsScreen extends StatelessWidget {
 /// Account card: identity, sign out, and a marketing-email toggle that writes
 /// the consent change back to the server (the opt-out path).
 class _AccountCard extends StatefulWidget {
-  const _AccountCard({required this.account, this.onLogout, this.onSetConsent});
+  const _AccountCard({
+    required this.account,
+    this.onLogout,
+    this.onSetConsent,
+    this.onResendVerification,
+  });
   final Account account;
   final VoidCallback? onLogout;
   final Future<void> Function(bool)? onSetConsent;
+  final Future<void> Function()? onResendVerification;
 
   @override
   State<_AccountCard> createState() => _AccountCardState();
@@ -75,6 +84,19 @@ class _AccountCard extends StatefulWidget {
 class _AccountCardState extends State<_AccountCard> {
   late bool _consent = widget.account.marketingConsent;
   bool _saving = false;
+  String? _verifyMsg;
+
+  Future<void> _resend() async {
+    final resend = widget.onResendVerification;
+    if (resend == null) return;
+    setState(() => _verifyMsg = 'Sending…');
+    try {
+      await resend();
+      if (mounted) setState(() => _verifyMsg = 'Verification email sent.');
+    } catch (_) {
+      if (mounted) setState(() => _verifyMsg = 'Could not send — try later.');
+    }
+  }
 
   Future<void> _setConsent(bool value) async {
     final update = widget.onSetConsent;
@@ -93,6 +115,41 @@ class _AccountCardState extends State<_AccountCard> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Widget _verifyBanner() {
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.accentAmber.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.accentAmber.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.mark_email_unread_outlined,
+            size: 16,
+            color: AppColors.accentAmber,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _verifyMsg ?? 'Your email isn\'t verified yet.',
+              style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+            ),
+          ),
+          TextButton(
+            onPressed: _resend,
+            child: const Text(
+              'Resend',
+              style: TextStyle(color: AppColors.accentCyan),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -149,6 +206,7 @@ class _AccountCardState extends State<_AccountCard> {
               ),
             ],
           ),
+          if (!widget.account.emailVerified) _verifyBanner(),
           const Divider(height: 24, color: AppColors.border),
           Row(
             children: [
