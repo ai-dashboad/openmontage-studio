@@ -32,6 +32,11 @@ APPLE_TEAM_ID="${APPLE_TEAM_ID:-G9VG22HGJG}"
 APPLE_ID="${APPLE_ID:-tslacoinv@gmail.com}"
 NOTARY_PROFILE="${NOTARY_PROFILE:-}"
 APPLE_APP_PASSWORD="${APPLE_APP_PASSWORD:-}"
+# App Store Connect API key (preferred for notarization — no app-specific
+# password needed). Auto-detected from the standard private_keys location.
+ASC_KEY_ID="${ASC_KEY_ID:-R7C3P5T8VU}"
+ASC_ISSUER_ID="${ASC_ISSUER_ID:-3a03ed96-7b88-472c-854b-861040776a53}"
+ASC_KEY_PATH="${ASC_KEY_PATH:-$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8}"
 
 # Auto-detect a Developer ID Application signing identity.
 IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
@@ -64,9 +69,11 @@ rm -rf "$STAGE"
 if [[ -n "$IDENTITY" ]]; then
   codesign --force --timestamp --sign "$IDENTITY" "$DMG"
 
-  # Pick a notarization credential.
+  # Pick a notarization credential (App Store Connect API key preferred).
   NOTARY_ARGS=()
-  if [[ -n "$NOTARY_PROFILE" ]]; then
+  if [[ -f "$ASC_KEY_PATH" ]]; then
+    NOTARY_ARGS=(--key "$ASC_KEY_PATH" --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID")
+  elif [[ -n "$NOTARY_PROFILE" ]]; then
     NOTARY_ARGS=(--keychain-profile "$NOTARY_PROFILE")
   elif [[ -n "$APPLE_APP_PASSWORD" ]]; then
     NOTARY_ARGS=(--apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD")
