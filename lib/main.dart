@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'screens/studio_screen.dart';
+import 'app_shell.dart';
 import 'theme/app_theme.dart';
 
 void main() {
@@ -15,7 +15,7 @@ class ReelforgeApp extends StatelessWidget {
       title: 'Reelforge',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
-      home: const StudioScreen(),
+      home: const AppShell(),
     );
   }
 }

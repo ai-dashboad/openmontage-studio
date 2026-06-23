@@ -5,10 +5,20 @@ import '../theme/app_theme.dart';
 /// Region A — the unified toolbar: project identity, online/offline state, the
 /// render action, and a live budget meter.
 class TopBar extends StatelessWidget {
-  const TopBar({super.key, required this.isOnline, required this.onToggleOnline});
+  const TopBar({
+    super.key,
+    required this.isOnline,
+    required this.onToggleOnline,
+    this.onHome,
+    this.onOpenSettings,
+    this.onRender,
+  });
 
   final bool isOnline;
   final VoidCallback onToggleOnline;
+  final VoidCallback? onHome;
+  final VoidCallback? onOpenSettings;
+  final VoidCallback? onRender;
 
   @override
   Widget build(BuildContext context) {
@@ -24,8 +34,14 @@ class TopBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.blur_circular, color: AppColors.accentCyan, size: 20),
-          const SizedBox(width: 8),
+          IconButton(
+            onPressed: onHome,
+            icon: const Icon(Icons.blur_circular,
+                color: AppColors.accentCyan, size: 20),
+            tooltip: 'Home',
+            visualDensity: VisualDensity.compact,
+          ),
+          const SizedBox(width: 4),
           const Text('Reelforge',
               style: TextStyle(
                   color: AppColors.textPrimary,
@@ -39,7 +55,7 @@ class TopBar extends StatelessWidget {
           _BudgetMeter(fraction: spentFraction),
           const SizedBox(width: 16),
           FilledButton.icon(
-            onPressed: () {},
+            onPressed: onRender,
             icon: const Icon(Icons.play_arrow, size: 18),
             label: const Text('Render'),
             style: FilledButton.styleFrom(
@@ -50,7 +66,7 @@ class TopBar extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           IconButton(
-            onPressed: () {},
+            onPressed: onOpenSettings,
             icon: const Icon(Icons.settings_outlined,
                 color: AppColors.textMuted, size: 20),
             tooltip: 'Settings & providers',

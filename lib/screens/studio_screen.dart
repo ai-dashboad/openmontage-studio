@@ -4,6 +4,7 @@ import '../theme/app_theme.dart';
 import '../widgets/inspector.dart';
 import '../widgets/left_rail.dart';
 import '../widgets/preview_stage.dart';
+import '../widgets/render_dialog.dart';
 import '../widgets/side_panel.dart';
 import '../widgets/timeline.dart';
 import '../widgets/top_bar.dart';
@@ -12,7 +13,10 @@ import '../widgets/top_bar.dart';
 /// the timeline, preview, and inspector together: selected scene, playhead, the
 /// active rail surface, and online/offline mode.
 class StudioScreen extends StatefulWidget {
-  const StudioScreen({super.key});
+  const StudioScreen({super.key, this.onHome, this.onOpenSettings});
+
+  final VoidCallback? onHome;
+  final VoidCallback? onOpenSettings;
 
   @override
   State<StudioScreen> createState() => _StudioScreenState();
@@ -87,6 +91,9 @@ class _StudioScreenState extends State<StudioScreen> {
           TopBar(
             isOnline: _isOnline,
             onToggleOnline: () => setState(() => _isOnline = !_isOnline),
+            onHome: widget.onHome,
+            onOpenSettings: widget.onOpenSettings,
+            onRender: () => showRenderDialog(context),
           ),
           Expanded(
             child: Row(
