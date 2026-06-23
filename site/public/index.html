@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OpenMontage Studio — make videos by describing them</title>
+<meta name="description" content="A desktop studio where an AI agent takes your idea through script, scenes, narration, and render — running locally on your machine." />
+<meta property="og:title" content="OpenMontage Studio" />
+<meta property="og:description" content="Make videos by describing them. Local-first, agent-driven video production." />
+<meta property="og:type" content="website" />
+<style>
+  :root{
+    --bg:#0F172A; --surface:#1E293B; --surface2:#15233B; --border:#2A3A52;
+    --text:#E2E8F0; --muted:#94A3B8; --faint:#64748B;
+    --cyan:#22D3EE; --purple:#A78BFA; --amber:#F59E0B; --green:#34D399;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;
+    line-height:1.6;-webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+  .btn{display:inline-block;padding:12px 22px;border-radius:10px;font-weight:600;font-size:15px;cursor:pointer;transition:.15s}
+  .btn-primary{background:var(--cyan);color:var(--bg)}
+  .btn-primary:hover{filter:brightness(1.08)}
+  .btn-ghost{border:1px solid var(--border);color:var(--text)}
+  .btn-ghost:hover{border-color:var(--cyan)}
+
+  /* nav */
+  nav{position:sticky;top:0;z-index:10;background:rgba(15,23,42,.8);backdrop-filter:blur(10px);border-bottom:1px solid var(--border)}
+  nav .wrap{display:flex;align-items:center;height:64px;gap:18px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:17px}
+  .dot{width:18px;height:18px;border-radius:50%;background:radial-gradient(circle at 30% 30%,var(--cyan),var(--purple))}
+  nav .links{margin-left:auto;display:flex;gap:22px;align-items:center}
+  nav .links a{color:var(--muted);font-size:14px}
+  nav .links a:hover{color:var(--text)}
+
+  /* hero */
+  .hero{padding:84px 0 56px;text-align:center;position:relative;overflow:hidden}
+  .hero::before{content:"";position:absolute;inset:-40% 0 auto 0;height:520px;background:radial-gradient(ellipse at 50% 0,rgba(34,211,238,.16),transparent 60%);pointer-events:none}
+  .tag{display:inline-block;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--cyan);border:1px solid var(--border);border-radius:999px;padding:5px 12px;margin-bottom:22px}
+  h1{font-size:clamp(34px,6vw,60px);line-height:1.08;margin:0 0 18px;font-weight:800;letter-spacing:-.02em}
+  h1 .grad{background:linear-gradient(90deg,var(--cyan),var(--purple));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{font-size:clamp(16px,2.4vw,20px);color:var(--muted);max-width:660px;margin:0 auto 30px}
+  .cta{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+  .trust{margin-top:22px;color:var(--faint);font-size:13px}
+
+  /* mock window */
+  .mock{margin:54px auto 0;max-width:880px;background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:0 30px 80px -30px rgba(0,0,0,.6)}
+  .mock .bar{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);font-size:12px;color:var(--faint)}
+  .mock .bar i{width:11px;height:11px;border-radius:50%;display:inline-block}
+  .mock .body{display:grid;grid-template-columns:1.4fr 1fr;gap:0}
+  .mock .preview{padding:30px;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 0,rgba(34,211,238,.10),var(--surface))}
+  .mock .card{text-align:center}
+  .mock .card .big{font-size:46px;font-weight:800}
+  .mock .card .small{color:var(--muted);font-size:14px;margin-top:6px}
+  .mock .inspect{border-left:1px solid var(--border);padding:22px;font-size:13px;color:var(--muted)}
+  .mock .inspect .row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)}
+  .mock .inspect .k{color:var(--faint)}
+  .mock .stages{display:flex;gap:6px;flex-wrap:wrap;padding:12px 16px;border-top:1px solid var(--border);font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:var(--faint)}
+  .mock .stages b{color:var(--green);font-weight:600}
+  .mock .stages .cur{color:var(--amber);font-weight:700}
+
+  /* sections */
+  section{padding:72px 0}
+  .eyebrow{color:var(--cyan);font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;text-align:center}
+  h2{font-size:clamp(26px,4vw,38px);text-align:center;margin:8px 0 10px;font-weight:800;letter-spacing:-.01em}
+  .lead{color:var(--muted);text-align:center;max-width:620px;margin:0 auto 44px}
+
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  .feat{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px}
+  .feat .ic{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;font-size:20px;background:rgba(34,211,238,.12);margin-bottom:14px}
+  .feat h3{margin:0 0 8px;font-size:17px}
+  .feat p{margin:0;color:var(--muted);font-size:14px}
+
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .step{background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:22px}
+  .step .n{font-family:ui-monospace,Menlo,monospace;color:var(--cyan);font-size:13px;font-weight:700}
+  .step h4{margin:8px 0 6px;font-size:16px}
+  .step p{margin:0;color:var(--muted);font-size:13.5px}
+
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:40px}
+  .split h2{text-align:left;margin-top:0}
+  .split ul{margin:18px 0 0;padding:0;list-style:none}
+  .split li{padding:8px 0 8px 28px;position:relative;color:var(--muted)}
+  .split li::before{content:"✓";position:absolute;left:0;color:var(--green);font-weight:700}
+  .badge-row{display:flex;gap:10px;flex-wrap:wrap}
+  .badge{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--muted);background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px}
+
+  .final{text-align:center;background:linear-gradient(180deg,var(--surface),var(--surface2));border:1px solid var(--border);border-radius:18px;padding:56px 24px}
+  .final h2{margin-top:0}
+
+  footer{border-top:1px solid var(--border);padding:30px 0;color:var(--faint);font-size:13px}
+  footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px}
+
+  @media(max-width:820px){
+    .grid,.steps{grid-template-columns:1fr}
+    .mock .body{grid-template-columns:1fr}
+    .mock .inspect{border-left:0;border-top:1px solid var(--border)}
+    .split{grid-template-columns:1fr;padding:28px}
+    .split h2{text-align:center}
+  }
+</style>
+</head>
+<body>
+
+<nav><div class="wrap">
+  <a class="brand" href="#"><span class="dot"></span> OpenMontage Studio</a>
+  <div class="links">
+    <a href="#features">Features</a>
+    <a href="#how">How it works</a>
+    <a href="#local">Local &amp; private</a>
+    <a class="btn btn-primary" href="mailto:hello@opencli.ai?subject=OpenMontage%20Studio%20early%20access">Get early access</a>
+  </div>
+</div></nav>
+
+<header class="hero"><div class="wrap">
+  <span class="tag">Early access · macOS</span>
+  <h1>Make videos by<br><span class="grad">describing them.</span></h1>
+  <p class="sub">OpenMontage Studio is a desktop studio where an AI agent takes your idea through script, scenes, narration, and render — and most of it runs <strong>locally, on your machine</strong>.</p>
+  <div class="cta">
+    <a class="btn btn-primary" href="mailto:hello@opencli.ai?subject=OpenMontage%20Studio%20early%20access">Get early access</a>
+    <a class="btn btn-ghost" href="#how">See how it works</a>
+  </div>
+  <p class="trust">Local-first · no API keys required · your prompts and footage stay on your machine</p>
+
+  <div class="mock">
+    <div class="bar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><span style="margin-left:8px">OpenMontage Studio — The World in Numbers</span></div>
+    <div class="body">
+      <div class="preview"><div class="card"><div class="big" style="color:var(--cyan)">8.1B</div><div class="small">People sharing one connected planet</div></div></div>
+      <div class="inspect">
+        <div style="color:var(--cyan);font-family:ui-monospace,Menlo,monospace;margin-bottom:10px">scene_plan</div>
+        <div class="row"><span class="k">Scene</span><span>Population</span></div>
+        <div class="row"><span class="k">Type</span><span>stat_card</span></div>
+        <div class="row"><span class="k">Timing</span><span>3.5–7.5s</span></div>
+        <div style="margin-top:14px;background:var(--green);color:var(--bg);text-align:center;padding:9px;border-radius:8px;font-weight:600">✓ Approve &amp; continue</div>
+      </div>
+    </div>
+    <div class="stages"><b>idea</b> — <b>script</b> — <span class="cur">scene_plan</span> — assets — edit — compose</div>
+  </div>
+</div></header>
+
+<section id="features"><div class="wrap">
+  <div class="eyebrow">Why it's different</div>
+  <h2>An agent that actually makes the video</h2>
+  <p class="lead">Not a prompt box that returns a clip. A studio that walks your idea through a real production pipeline — and lets you steer at every step.</p>
+  <div class="grid">
+    <div class="feat"><div class="ic">🧠</div><h3>Agent-driven pipeline</h3><p>Describe what you want; the agent drafts the plan stage by stage. You approve, revise, or redo — it never ships behind your back.</p></div>
+    <div class="feat"><div class="ic">💻</div><h3>Runs locally &amp; offline</h3><p>A local model (Ollama) plans, on-device speech narrates, and ffmpeg renders. Cloud providers are optional, never required.</p></div>
+    <div class="feat"><div class="ic">🎬</div><h3>Real renders, not slideshows</h3><p>Scenes are composited with their narration into an actual MP4 — text, timing, and audio, produced on your machine.</p></div>
+    <div class="feat"><div class="ic">🔌</div><h3>Bring your own models</h3><p>Local and cloud generators sit behind one interface. Online vs offline is just “which endpoint” — swap freely.</p></div>
+    <div class="feat"><div class="ic">🎛️</div><h3>Studio you can steer</h3><p>Preview, a dual-layer timeline, an inspector, and an approval gate on every creative stage. You're always in control.</p></div>
+    <div class="feat"><div class="ic">🔒</div><h3>Private by design</h3><p>Accounts with email verification, password reset, and one-click delete. You decide what's collected — and can opt out anytime.</p></div>
+  </div>
+</div></section>
+
+<section id="how" style="background:var(--surface2)"><div class="wrap">
+  <div class="eyebrow">How it works</div>
+  <h2>Idea to finished clip, in six steps</h2>
+  <p class="lead">Each stage produces one artifact that becomes the brief for the next. Creative stages pause for your approval; technical stages run through.</p>
+  <div class="steps">
+    <div class="step"><div class="n">01 · idea</div><h4>Write a brief</h4><p>One line — “a 30s explainer on black holes.” The agent locks the hook, length, and tone.</p></div>
+    <div class="step"><div class="n">02 · script</div><h4>Tight spoken script</h4><p>Written for the ear and budgeted to the runtime, so narration never overruns the cut.</p></div>
+    <div class="step"><div class="n">03 · scene_plan</div><h4>Timed visual scenes</h4><p>A hook, a few beats, a close — varied scene types with on-screen text and timings.</p></div>
+    <div class="step"><div class="n">04 · assets</div><h4>Narration &amp; visuals</h4><p>On-device voiceover and scene visuals, generated locally first; cloud only when you ask.</p></div>
+    <div class="step"><div class="n">05 · edit</div><h4>Sequence &amp; sync</h4><p>Cuts aligned to narration, captions, and ducked music — decisions you can see and change.</p></div>
+    <div class="step"><div class="n">06 · compose</div><h4>Render the MP4</h4><p>ffmpeg composites everything into a real 1080p video with audio. Press play.</p></div>
+  </div>
+</div></section>
+
+<section id="local"><div class="wrap">
+  <div class="split">
+    <div>
+      <div class="eyebrow" style="text-align:left">Local &amp; private</div>
+      <h2>Your machine. Your data.</h2>
+      <p style="color:var(--muted)">The default path needs no API keys and no internet: a local LLM, on-device text-to-speech, and ffmpeg. Go online when you want the best cloud models — the app is honest about exactly which provider runs each step.</p>
+      <ul>
+        <li>Works fully offline for the core pipeline</li>
+        <li>Cloud providers are opt-in, never silent</li>
+        <li>Consent-based data collection, with one-click opt-out</li>
+        <li>Delete your account and data anytime</li>
+      </ul>
+    </div>
+    <div>
+      <div class="badge-row">
+        <span class="badge">💻 Ollama · local LLM</span>
+        <span class="badge">🔊 on-device TTS</span>
+        <span class="badge">🎞️ ffmpeg render</span>
+        <span class="badge">☁️ cloud · optional</span>
+        <span class="badge">🔐 email-verified accounts</span>
+        <span class="badge">🛡️ rate-limited auth</span>
+      </div>
+    </div>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <div class="final">
+    <div class="eyebrow">Early access</div>
+    <h2>Be among the first to make a video by talking to it</h2>
+    <p class="lead">OpenMontage Studio is in active development. Tell us what you'd make, and we'll get you in.</p>
+    <a class="btn btn-primary" href="mailto:hello@opencli.ai?subject=OpenMontage%20Studio%20early%20access">Request early access</a>
+  </div>
+</div></section>
+
+<footer><div class="wrap">
+  <span>© 2026 OpenMontage Studio</span>
+  <span>Built on Cloudflare · <a href="mailto:hello@opencli.ai" style="color:var(--muted)">hello@opencli.ai</a></span>
+</div></footer>
+
+</body>
+</html>
