@@ -14,6 +14,7 @@ class StudioProject {
     required this.scenes,
     required this.stageIndex,
     required this.updatedAtIso,
+    this.voice = 'Samantha',
     this.renderPath,
     this.renderSeconds,
     this.renderBytes,
@@ -24,6 +25,7 @@ class StudioProject {
   List<Scene> scenes;
   int stageIndex;
   String updatedAtIso;
+  String voice;
   String? renderPath;
   double? renderSeconds;
   int? renderBytes;
@@ -36,6 +38,7 @@ class StudioProject {
     'scenes': [for (final s in scenes) s.toJson()],
     'stage': stageIndex,
     'updatedAt': updatedAtIso,
+    'voice': voice,
     if (renderPath != null) 'renderPath': renderPath,
     if (renderSeconds != null) 'renderSeconds': renderSeconds,
     if (renderBytes != null) 'renderBytes': renderBytes,
@@ -50,6 +53,7 @@ class StudioProject {
         .toList(),
     stageIndex: (j['stage'] as num?)?.toInt() ?? 2,
     updatedAtIso: j['updatedAt'] as String? ?? '',
+    voice: j['voice'] as String? ?? 'Samantha',
     renderPath: j['renderPath'] as String?,
     renderSeconds: (j['renderSeconds'] as num?)?.toDouble(),
     renderBytes: (j['renderBytes'] as num?)?.toInt(),

@@ -58,6 +58,7 @@ class _AppShellState extends State<AppShell> {
   String _projectId = 'sample';
   String _projectName = 'Untitled video';
   int _projectStage = 2;
+  String _projectVoice = 'Samantha';
   String? _brief;
 
   void _go(AppView view) => setState(() => _view = view);
@@ -70,6 +71,7 @@ class _AppShellState extends State<AppShell> {
       _projectId = 'proj_${DateTime.now().microsecondsSinceEpoch}';
       _projectName = _deriveName(brief);
       _projectStage = 2;
+      _projectVoice = 'Samantha';
       _view = AppView.studio;
     });
   }
@@ -82,6 +84,7 @@ class _AppShellState extends State<AppShell> {
       _projectId = project.id;
       _projectName = project.name;
       _projectStage = project.stageIndex;
+      _projectVoice = project.voice;
       _view = AppView.studio;
     });
   }
@@ -114,6 +117,7 @@ class _AppShellState extends State<AppShell> {
         projectId: _projectId,
         projectName: _projectName,
         initialStage: _projectStage,
+        voice: _projectVoice,
         brief: _brief,
         scenes: _scenes,
         onHome: () => _go(AppView.home),

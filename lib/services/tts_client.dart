@@ -38,6 +38,20 @@ class TtsClient {
     }
   }
 
+  /// Lists the narration voices available on this machine. Empty on failure.
+  Future<List<String>> voices() async {
+    try {
+      final res = await _http
+          .get(Uri.parse('$baseUrl/voices'))
+          .timeout(const Duration(seconds: 3));
+      if (res.statusCode != 200) return const [];
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      return (body['voices'] as List? ?? const []).cast<String>();
+    } catch (_) {
+      return const [];
+    }
+  }
+
   /// Synthesizes [text] to an audio clip on disk and returns its metadata.
   Future<TtsClip> synthesize(String text, {String? voice}) async {
     final res = await _http

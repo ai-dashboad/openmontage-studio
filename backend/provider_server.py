@@ -62,6 +62,28 @@ def _duration_seconds(path: Path) -> float:
         return 0.0
 
 
+def _list_voices() -> list[str]:
+    """English `say` voices installed on this Mac, in a curated order so the
+    common high-quality ones surface first."""
+    try:
+        out = subprocess.run(
+            ["say", "-v", "?"], capture_output=True, text=True, timeout=10
+        ).stdout
+    except Exception:
+        return [DEFAULT_VOICE]
+    names: list[str] = []
+    for line in out.splitlines():
+        match = re.match(r"^(.*?)\s+([a-z]{2}[-_][A-Z]{2})\s", line)
+        if match and match.group(2).startswith("en"):
+            names.append(match.group(1).strip())
+    if not names:
+        return [DEFAULT_VOICE]
+    preferred = ["Samantha", "Alex", "Daniel", "Karen", "Moira", "Tessa"]
+    ordered = [v for v in preferred if v in names]
+    ordered += [v for v in names if v not in ordered]
+    return ordered
+
+
 def _say(text: str, voice: str, out_path: Path) -> None:
     subprocess.run(
         ["say", "-v", voice, "-o", str(out_path), text], check=True, timeout=60
@@ -310,6 +332,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send(
                 200, {"ok": True, "engine": "macos-say+ffmpeg", "voice": DEFAULT_VOICE}
             )
+        elif self.path == "/voices":
+            self._send(200, {"voices": _list_voices()})
         else:
             self._send(404, {"error": "not found"})
 

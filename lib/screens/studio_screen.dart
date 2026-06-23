@@ -34,6 +34,7 @@ class StudioScreen extends StatefulWidget {
     required this.projectId,
     this.projectName = 'Untitled video',
     this.initialStage = 2,
+    this.voice = 'Samantha',
     this.brief,
     this.scenes = MockProject.scenes,
     this.onHome,
@@ -50,6 +51,7 @@ class StudioScreen extends StatefulWidget {
   final String projectId;
   final String projectName;
   final int initialStage;
+  final String voice;
 
   /// The brief the user typed on the home screen, if any — seeds the agent
   /// conversation so the studio continues the same thread.
@@ -87,6 +89,8 @@ class _StudioScreenState extends State<StudioScreen>
 
   late final ConversationController _conversation;
   late String _projectName;
+  late String _voice;
+  List<String> _voices = const [];
 
   // The most recent render for this project, persisted with it.
   String? _renderPath;
@@ -115,9 +119,19 @@ class _StudioScreenState extends State<StudioScreen>
     _scenes = [...widget.scenes];
     _stage = widget.initialStage;
     _projectName = widget.projectName;
+    _voice = widget.voice;
     _selectedScene = _scenes.length > 1 ? 1 : 0;
     _playhead = _scenes[_selectedScene].startSeconds;
     _ticker = createTicker(_onTick);
+    // Discover available narration voices (best-effort).
+    widget.tts.voices().then((v) {
+      if (mounted && v.isNotEmpty) {
+        setState(() {
+          _voices = v;
+          if (!v.contains(_voice)) _voice = v.first;
+        });
+      }
+    });
     _conversation = ConversationController(
       agent: widget.agent,
       seed: _seedConversation(),
@@ -188,6 +202,7 @@ class _StudioScreenState extends State<StudioScreen>
         scenes: [..._scenes],
         stageIndex: _stage,
         updatedAtIso: DateTime.now().toIso8601String(),
+        voice: _voice,
         renderPath: _renderPath,
         renderSeconds: _renderSeconds,
         renderBytes: _renderBytes,
@@ -471,6 +486,7 @@ class _StudioScreenState extends State<StudioScreen>
       provider: widget.provider,
       scenes: _renderPayload(),
       projectName: _projectName,
+      voice: _voice,
       onComplete: (result) {
         _renderPath = result.path;
         _renderSeconds = result.seconds;
@@ -546,6 +562,7 @@ class _StudioScreenState extends State<StudioScreen>
     try {
       final clip = await widget.tts.synthesize(
         text.isEmpty ? scene.title : text,
+        voice: _voice,
       );
       await widget.tts.play(clip.path);
       if (!mounted) return;
@@ -634,6 +651,12 @@ class _StudioScreenState extends State<StudioScreen>
                   onMoveRight: () => _moveScene(1),
                   onGenerateNarration: _generateNarration,
                   narrating: _narrating,
+                  voice: _voice,
+                  voices: _voices,
+                  onVoiceChanged: (v) {
+                    setState(() => _voice = v);
+                    _save();
+                  },
                   onRevise: _revise,
                   revising: _revising,
                   onUndo: _undoEdit,

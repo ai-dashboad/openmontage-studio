@@ -27,15 +27,19 @@ class RenderClient {
   final String baseUrl;
   final http.Client _http;
 
-  /// Renders [scenes] (each `{headline, subtitle, seconds, accent}`) to an MP4.
-  Future<RenderResult> render(List<Map<String, dynamic>> scenes) async {
+  /// Renders [scenes] (each `{headline, subtitle, seconds, accent}`) to an MP4,
+  /// narrated with [voice] when given.
+  Future<RenderResult> render(
+    List<Map<String, dynamic>> scenes, {
+    String? voice,
+  }) async {
     final res = await _http
         .post(
           Uri.parse('$baseUrl/render'),
           headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({'scenes': scenes}),
+          body: jsonEncode({'scenes': scenes, 'voice': ?voice}),
         )
-        .timeout(const Duration(seconds: 180));
+        .timeout(const Duration(seconds: 300));
     if (res.statusCode != 200) {
       throw RenderException('Render provider returned HTTP ${res.statusCode}');
     }

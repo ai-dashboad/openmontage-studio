@@ -23,6 +23,9 @@ class Inspector extends StatefulWidget {
     this.approveLabel = 'Approve & continue',
     this.onGenerateNarration,
     this.narrating = false,
+    this.voice = 'Samantha',
+    this.voices = const [],
+    this.onVoiceChanged,
     this.onRevise,
     this.revising = false,
     this.onUndo,
@@ -45,6 +48,9 @@ class Inspector extends StatefulWidget {
   final String approveLabel;
   final VoidCallback? onGenerateNarration;
   final bool narrating;
+  final String voice;
+  final List<String> voices;
+  final ValueChanged<String>? onVoiceChanged;
   final VoidCallback? onRevise;
   final bool revising;
   final VoidCallback? onUndo;
@@ -380,6 +386,53 @@ class _InspectorState extends State<Inspector> {
     );
   }
 
+  /// Narration voice picker (the value applies to Generate narration + Render).
+  Widget _voicePicker() {
+    final value = widget.voices.contains(widget.voice)
+        ? widget.voice
+        : widget.voices.first;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.record_voice_over, size: 15, color: AppColors.textFaint),
+          const SizedBox(width: 8),
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: value,
+                isExpanded: true,
+                isDense: true,
+                dropdownColor: AppColors.surfaceHigh,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                ),
+                icon: const Icon(
+                  Icons.expand_more,
+                  size: 16,
+                  color: AppColors.textMuted,
+                ),
+                items: [
+                  for (final v in widget.voices)
+                    DropdownMenuItem(value: v, child: Text(v)),
+                ],
+                onChanged: (v) {
+                  if (v != null) widget.onVoiceChanged?.call(v);
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _approvalGate() {
     return Container(
       padding: const EdgeInsets.all(14),
@@ -388,6 +441,10 @@ class _InspectorState extends State<Inspector> {
       ),
       child: Column(
         children: [
+          if (widget.voices.isNotEmpty) ...[
+            _voicePicker(),
+            const SizedBox(height: 8),
+          ],
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(

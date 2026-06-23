@@ -17,6 +17,7 @@ Future<void> showRenderDialog(
   ProviderManager? provider,
   ValueChanged<RenderResult>? onComplete,
   String projectName = 'video',
+  String? voice,
 }) {
   return showDialog(
     context: context,
@@ -28,6 +29,7 @@ Future<void> showRenderDialog(
       provider: provider,
       onComplete: onComplete,
       projectName: projectName,
+      voice: voice,
     ),
   );
 }
@@ -41,12 +43,14 @@ class _RenderDialog extends StatefulWidget {
     required this.projectName,
     this.provider,
     this.onComplete,
+    this.voice,
   });
   final RenderClient client;
   final List<Map<String, dynamic>> scenes;
   final String projectName;
   final ProviderManager? provider;
   final ValueChanged<RenderResult>? onComplete;
+  final String? voice;
 
   @override
   State<_RenderDialog> createState() => _RenderDialogState();
@@ -66,7 +70,10 @@ class _RenderDialogState extends State<_RenderDialog> {
   Future<void> _render() async {
     setState(() => _phase = _Phase.rendering);
     try {
-      final result = await widget.client.render(widget.scenes);
+      final result = await widget.client.render(
+        widget.scenes,
+        voice: widget.voice,
+      );
       if (!mounted) return;
       setState(() {
         _result = result;
