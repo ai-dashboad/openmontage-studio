@@ -1,0 +1,6 @@
+# Never commit secrets or build artifacts.
+.env
+.dev.vars
+node_modules/
+.wrangler/
+dist/

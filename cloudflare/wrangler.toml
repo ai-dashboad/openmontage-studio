@@ -1,0 +1,15 @@
+name = "openmontage-auth"
+main = "src/index.ts"
+compatibility_date = "2025-06-01"
+account_id = "e62a1b607ff359585155e7a27c087f6a"
+
+# D1 — the users database.
+[[d1_databases]]
+binding = "DB"
+database_name = "openmontage-auth"
+database_id = "efc568d2-77f1-4354-abca-659dd613177b"
+
+# KV — session tokens (token -> user id, with TTL).
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "a04484c65b7143e585543ce1025535a4"
