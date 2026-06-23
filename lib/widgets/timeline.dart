@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import '../models/studio_models.dart';
 import '../theme/app_theme.dart';
 
-/// Region E — the dual-layer timeline. Top row is the 7-stage pipeline progress;
-/// bottom row is the scene strip for the current stage, with a draggable-looking
-/// playhead. Selecting a scene drives the preview and inspector.
+/// Region E — the timeline. The top row is the 7-stage pipeline progress; below
+/// it are two aligned tracks sharing one playhead: a **video track** (the scene
+/// strip) and an **audio track** (per-scene narration). Selecting a scene drives
+/// the preview and inspector.
 class Timeline extends StatelessWidget {
   const Timeline({
     super.key,
@@ -23,10 +24,13 @@ class Timeline extends StatelessWidget {
   final double playheadSeconds;
   final ValueChanged<int> onSelectScene;
 
+  /// Left gutter where the V/A track labels sit.
+  static const double _gutter = 26;
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 116,
+      height: 168,
       decoration: const BoxDecoration(
         color: AppColors.surface,
         border: Border(top: BorderSide(color: AppColors.border)),
@@ -38,12 +42,91 @@ class Timeline extends StatelessWidget {
           _StageTrack(currentStageIndex: currentStageIndex),
           const SizedBox(height: 10),
           Expanded(
-            child: _SceneTrack(
-              scenes: scenes,
-              totalSeconds: totalSeconds,
-              selectedIndex: selectedSceneIndex,
-              playheadSeconds: playheadSeconds,
-              onSelect: onSelectScene,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final fullWidth = constraints.maxWidth;
+                final trackWidth = fullWidth - _gutter;
+                final frac = totalSeconds == 0
+                    ? 0.0
+                    : (playheadSeconds / totalSeconds).clamp(0.0, 1.0);
+                final playheadX = _gutter + frac * trackWidth;
+                return Stack(
+                  children: [
+                    Column(
+                      children: [
+                        Expanded(
+                          child: Row(
+                            children: [
+                              _trackLabel('V', Icons.movie_outlined),
+                              Expanded(
+                                child: _VideoTrack(
+                                  scenes: scenes,
+                                  selectedIndex: selectedSceneIndex,
+                                  onSelect: onSelectScene,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Expanded(
+                          child: Row(
+                            children: [
+                              _trackLabel('A', Icons.graphic_eq),
+                              Expanded(
+                                child: _AudioTrack(
+                                  scenes: scenes,
+                                  selectedIndex: selectedSceneIndex,
+                                  onSelect: onSelectScene,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    // Shared playhead across both tracks.
+                    Positioned(
+                      left: playheadX.clamp(_gutter, fullWidth - 1),
+                      top: 0,
+                      bottom: 0,
+                      child: Container(width: 2, color: AppColors.accentCyan),
+                    ),
+                    Positioned(
+                      left: (playheadX - 5).clamp(_gutter - 5, fullWidth - 10),
+                      top: -2,
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: const BoxDecoration(
+                          color: AppColors.accentCyan,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _trackLabel(String label, IconData icon) {
+    return SizedBox(
+      width: _gutter,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 13, color: AppColors.textFaint),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: AppTheme.mono.copyWith(
+              color: AppColors.textFaint,
+              fontSize: 10,
             ),
           ),
         ],
@@ -97,64 +180,62 @@ class _StageTrack extends StatelessWidget {
   }
 }
 
-class _SceneTrack extends StatelessWidget {
-  const _SceneTrack({
+/// The video track: one block per scene, sized by its duration.
+class _VideoTrack extends StatelessWidget {
+  const _VideoTrack({
     required this.scenes,
-    required this.totalSeconds,
     required this.selectedIndex,
-    required this.playheadSeconds,
     required this.onSelect,
   });
 
   final List<Scene> scenes;
-  final double totalSeconds;
   final int selectedIndex;
-  final double playheadSeconds;
   final ValueChanged<int> onSelect;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final playheadX = (playheadSeconds / totalSeconds) * width;
-        return Stack(
-          children: [
-            Row(
-              children: [
-                for (var i = 0; i < scenes.length; i++)
-                  Expanded(
-                    flex: (scenes[i].durationSeconds * 10).round(),
-                    child: _SceneBlock(
-                      scene: scenes[i],
-                      selected: i == selectedIndex,
-                      onTap: () => onSelect(i),
-                    ),
-                  ),
-              ],
+    return Row(
+      children: [
+        for (var i = 0; i < scenes.length; i++)
+          Expanded(
+            flex: (scenes[i].durationSeconds * 10).round().clamp(1, 1 << 30),
+            child: _SceneBlock(
+              scene: scenes[i],
+              selected: i == selectedIndex,
+              onTap: () => onSelect(i),
             ),
-            // Playhead.
-            Positioned(
-              left: playheadX.clamp(0, width - 1),
-              top: 0,
-              bottom: 0,
-              child: Container(width: 2, color: AppColors.accentCyan),
+          ),
+      ],
+    );
+  }
+}
+
+/// The audio track: a narration block per scene, aligned to the video track.
+class _AudioTrack extends StatelessWidget {
+  const _AudioTrack({
+    required this.scenes,
+    required this.selectedIndex,
+    required this.onSelect,
+  });
+
+  final List<Scene> scenes;
+  final int selectedIndex;
+  final ValueChanged<int> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (var i = 0; i < scenes.length; i++)
+          Expanded(
+            flex: (scenes[i].durationSeconds * 10).round().clamp(1, 1 << 30),
+            child: _NarrationBlock(
+              scene: scenes[i],
+              selected: i == selectedIndex,
+              onTap: () => onSelect(i),
             ),
-            Positioned(
-              left: (playheadX - 5).clamp(0, width - 10),
-              top: -2,
-              child: Container(
-                width: 10,
-                height: 10,
-                decoration: const BoxDecoration(
-                  color: AppColors.accentCyan,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
+          ),
+      ],
     );
   }
 }
@@ -212,6 +293,92 @@ class _SceneBlock extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// A scene's narration, drawn as a small deterministic waveform so the audio
+/// track reads as a real layer. Empty when the scene has no spoken text.
+class _NarrationBlock extends StatelessWidget {
+  const _NarrationBlock({
+    required this.scene,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final Scene scene;
+  final bool selected;
+  final VoidCallback onTap;
+
+  String get _narration =>
+      [scene.headline, scene.subtitle].where((s) => s.isNotEmpty).join('. ');
+
+  @override
+  Widget build(BuildContext context) {
+    final has = _narration.isNotEmpty;
+    const audioColor = AppColors.accentGreen;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(6),
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color: has
+                ? audioColor.withValues(alpha: selected ? 0.22 : 0.10)
+                : AppColors.background,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: selected && has ? audioColor : AppColors.border,
+              width: selected && has ? 1.5 : 1,
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          child: has
+              ? _Waveform(seed: _narration, color: audioColor)
+              : const Center(
+                  child: Text(
+                    'silent',
+                    style: TextStyle(
+                      color: AppColors.textFaint,
+                      fontSize: 10,
+                    ),
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Waveform extends StatelessWidget {
+  const _Waveform({required this.seed, required this.color});
+  final String seed;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    // Deterministic bar heights derived from the narration text.
+    final codes = seed.codeUnits;
+    return LayoutBuilder(
+      builder: (context, c) {
+        final barCount = (c.maxWidth / 5).clamp(6, 48).floor();
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            for (var i = 0; i < barCount; i++)
+              Container(
+                width: 2,
+                height: 4 + (codes[i % codes.length] % 16).toDouble(),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.65),
+                  borderRadius: BorderRadius.circular(1),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }
