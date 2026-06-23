@@ -4,6 +4,7 @@ import 'screens/home_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/studio_screen.dart';
 import 'services/agent_service.dart';
+import 'services/tts_client.dart';
 
 /// Top-level views the app switches between.
 enum AppView { home, studio, settings }
@@ -12,10 +13,11 @@ enum AppView { home, studio, settings }
 /// simple state switch rather than a Navigator stack so the windowed desktop
 /// shell stays flat and predictable.
 class AppShell extends StatefulWidget {
-  const AppShell({super.key, this.agentService});
+  const AppShell({super.key, this.agentService, this.ttsClient});
 
-  /// Injected in tests; defaults to a live local-agent service.
+  /// Injected in tests; default to live local providers.
   final AgentService? agentService;
+  final TtsClient? ttsClient;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -24,6 +26,7 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   AppView _view = AppView.home;
   late final AgentService _agent = widget.agentService ?? AgentService();
+  late final TtsClient _tts = widget.ttsClient ?? TtsClient();
 
   /// The plan driving the studio — the agent's output, or the sample default.
   List<Scene> _scenes = MockProject.scenes;
@@ -47,6 +50,7 @@ class _AppShellState extends State<AppShell> {
       ),
       AppView.studio => StudioScreen(
         agent: _agent,
+        tts: _tts,
         scenes: _scenes,
         onHome: () => _go(AppView.home),
         onOpenSettings: () => _go(AppView.settings),

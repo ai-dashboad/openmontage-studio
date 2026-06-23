@@ -11,11 +11,15 @@ class Inspector extends StatelessWidget {
     required this.scene,
     required this.stageName,
     required this.onApprove,
+    this.onGenerateNarration,
+    this.narrating = false,
   });
 
   final Scene scene;
   final String stageName;
   final VoidCallback onApprove;
+  final VoidCallback? onGenerateNarration;
+  final bool narrating;
 
   @override
   Widget build(BuildContext context) {
@@ -185,6 +189,29 @@ class Inspector extends StatelessWidget {
       ),
       child: Column(
         children: [
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: narrating ? null : onGenerateNarration,
+              icon: narrating
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.accentCyan,
+                      ),
+                    )
+                  : const Icon(Icons.graphic_eq, size: 16),
+              label: Text(narrating ? 'Synthesizing…' : 'Generate narration'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.accentCyan,
+                side: const BorderSide(color: AppColors.border),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(

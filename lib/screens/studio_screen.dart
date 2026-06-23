@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/studio_models.dart';
 import '../services/agent_service.dart';
+import '../services/tts_client.dart';
 import '../theme/app_theme.dart';
 import '../widgets/inspector.dart';
 import '../widgets/left_rail.dart';
@@ -17,12 +18,14 @@ class StudioScreen extends StatefulWidget {
   const StudioScreen({
     super.key,
     required this.agent,
+    required this.tts,
     this.scenes = MockProject.scenes,
     this.onHome,
     this.onOpenSettings,
   });
 
   final AgentService agent;
+  final TtsClient tts;
 
   /// The scene plan driving the editor — defaults to the sample, or an
   /// agent-generated plan passed in from the home brief.
@@ -93,14 +96,46 @@ class _StudioScreenState extends State<StudioScreen> {
   }
 
   void _approve() {
+    _toast('scene_plan approved — advancing to assets');
+  }
+
+  bool _narrating = false;
+
+  Future<void> _generateNarration() async {
+    if (_narrating) return;
+    setState(() => _narrating = true);
+    final scene = _scene;
+    final text = [
+      scene.headline,
+      scene.subtitle,
+    ].where((s) => s.isNotEmpty).join('. ');
+    try {
+      final clip = await widget.tts.synthesize(
+        text.isEmpty ? scene.title : text,
+      );
+      await widget.tts.play(clip.path);
+      if (!mounted) return;
+      _toast(
+        'Narration ready · ${clip.voice} · ${clip.seconds}s '
+        '(${(clip.bytes / 1024).round()} KB)',
+      );
+    } catch (_) {
+      if (!mounted) return;
+      _toast('TTS provider offline — run: python3 backend/tts_server.py');
+    } finally {
+      if (mounted) setState(() => _narrating = false);
+    }
+  }
+
+  void _toast(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
-        width: 360,
+        width: 420,
         backgroundColor: AppColors.surfaceHigh,
-        content: const Text(
-          'scene_plan approved — advancing to assets',
-          style: TextStyle(color: AppColors.textPrimary),
+        content: Text(
+          message,
+          style: const TextStyle(color: AppColors.textPrimary),
         ),
       ),
     );
@@ -141,6 +176,8 @@ class _StudioScreenState extends State<StudioScreen> {
                   scene: _scene,
                   stageName: 'scene_plan',
                   onApprove: _approve,
+                  onGenerateNarration: _generateNarration,
+                  narrating: _narrating,
                 ),
               ],
             ),

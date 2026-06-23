@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'app_shell.dart';
 import 'services/agent_service.dart';
+import 'services/tts_client.dart';
 import 'theme/app_theme.dart';
 
 void main() {
@@ -8,10 +9,11 @@ void main() {
 }
 
 class OpenMontageStudioApp extends StatelessWidget {
-  const OpenMontageStudioApp({super.key, this.agentService});
+  const OpenMontageStudioApp({super.key, this.agentService, this.ttsClient});
 
-  /// Injected in tests; defaults to a live local-agent service.
+  /// Injected in tests; default to live local providers.
   final AgentService? agentService;
+  final TtsClient? ttsClient;
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +21,7 @@ class OpenMontageStudioApp extends StatelessWidget {
       title: 'OpenMontage Studio',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
-      home: AppShell(agentService: agentService),
+      home: AppShell(agentService: agentService, ttsClient: ttsClient),
     );
   }
 }

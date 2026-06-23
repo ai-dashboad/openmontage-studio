@@ -100,6 +100,13 @@ class Catalog {
     ),
     // Voiceover.
     ProviderEntry(
+      name: 'System Voice',
+      capability: 'Voiceover',
+      kind: ProviderKind.local,
+      status: ProviderStatus.available,
+      hint: 'macOS say · :8765',
+    ),
+    ProviderEntry(
       name: 'Piper',
       capability: 'Voiceover',
       kind: ProviderKind.local,

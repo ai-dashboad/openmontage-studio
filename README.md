@@ -122,6 +122,23 @@ home screen and pressing **Create** asks the local model for a JSON scene plan
 timeline, preview, and inspector. If the model is unreachable or the response
 isn't usable, the studio opens with the sample plan instead.
 
+## Local narration (live)
+
+The studio inspector's **Generate narration** button produces real audio for the
+selected scene through a second localhost provider: `backend/tts_server.py`, a
+tiny stdlib-only service wrapping the macOS `say` engine — offline, no install,
+no API key.
+
+```bash
+python3 backend/tts_server.py     # listens on 127.0.0.1:8765
+```
+
+With it running, **Generate narration** synthesizes the scene's headline +
+subtitle to an AIFF clip, plays it through the speakers, and reports the clip
+(voice, duration, size). If the provider is down, the studio says how to start
+it. `TtsClient` is the Dart side; both providers (LLM + TTS) follow the same
+`localhost`-endpoint shape, so adding more is uniform.
+
 ## Roadmap
 
 1. **Agent tool-calling** — extend structured output from scene plans to the

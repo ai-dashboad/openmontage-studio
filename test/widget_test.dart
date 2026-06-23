@@ -11,6 +11,7 @@ import 'package:http/testing.dart';
 import 'package:openmontage_studio/main.dart';
 import 'package:openmontage_studio/services/agent_service.dart';
 import 'package:openmontage_studio/services/ollama_client.dart';
+import 'package:openmontage_studio/services/tts_client.dart';
 
 // The shell targets a minimum desktop window of 1100x720.
 const _desktop = Size(1280, 832);
@@ -42,12 +43,44 @@ AgentService _mockAgent({String reply = 'Here is a three-beat plan.'}) {
   return AgentService(ollama: OllamaClient(httpClient: client));
 }
 
-/// Boots the app at desktop size with a mock-backed agent.
-Future<void> _boot(WidgetTester tester, {AgentService? agent}) async {
+/// A mock TTS provider that reports a synthesized clip without touching disk.
+TtsClient _mockTts() {
+  final client = MockClient((request) async {
+    if (request.url.path.endsWith('/health')) {
+      return http.Response(jsonEncode({'ok': true}), 200);
+    }
+    if (request.url.path.endsWith('/tts/play')) {
+      return http.Response(jsonEncode({'ok': true}), 200);
+    }
+    if (request.url.path.endsWith('/tts')) {
+      return http.Response(
+        jsonEncode({
+          'path': '/tmp/narration_1.aiff',
+          'voice': 'Samantha',
+          'bytes': 104142,
+          'seconds': 2.3,
+        }),
+        200,
+      );
+    }
+    return http.Response('not found', 404);
+  });
+  return TtsClient(httpClient: client);
+}
+
+/// Boots the app at desktop size with mock-backed local providers.
+Future<void> _boot(
+  WidgetTester tester, {
+  AgentService? agent,
+  TtsClient? tts,
+}) async {
   await tester.binding.setSurfaceSize(_desktop);
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
-    OpenMontageStudioApp(agentService: agent ?? _mockAgent()),
+    OpenMontageStudioApp(
+      agentService: agent ?? _mockAgent(),
+      ttsClient: tts ?? _mockTts(),
+    ),
   );
   await tester.pumpAndSettle();
 }
@@ -126,6 +159,17 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Hook, body, payoff.'), findsOneWidget);
+  });
+
+  testWidgets('generate narration calls the TTS provider', (tester) async {
+    await _boot(tester);
+    await _enterStudio(tester);
+
+    await tester.tap(find.text('Generate narration'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Narration ready'), findsOneWidget);
+    expect(find.textContaining('Samantha'), findsOneWidget);
   });
 
   testWidgets('render button opens the progress dialog and completes', (
