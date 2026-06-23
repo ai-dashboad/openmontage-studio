@@ -56,13 +56,18 @@ class _Header extends StatelessWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: const [
-            Text('Reelforge',
-                style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 24,
-                    fontWeight: FontWeight.w700)),
-            Text('AI-orchestrated video production',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+            Text(
+              'Reelforge',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            Text(
+              'AI-orchestrated video production',
+              style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+            ),
           ],
         ),
         const Spacer(),
@@ -98,49 +103,62 @@ class _NewProjectCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Start a new video',
-              style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600)),
+          const Text(
+            'Start a new video',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           const SizedBox(height: 12),
-          Row(children: [
-            Expanded(
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                decoration: BoxDecoration(
-                  color: AppColors.background,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: const TextField(
-                  style:
-                      TextStyle(color: AppColors.textPrimary, fontSize: 14),
-                  decoration: InputDecoration(
-                    isDense: true,
-                    border: InputBorder.none,
-                    hintText:
-                        'Describe your video — e.g. "a 30s explainer on black holes"',
-                    hintStyle:
-                        TextStyle(color: AppColors.textFaint, fontSize: 14),
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: const TextField(
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 14,
+                    ),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      border: InputBorder.none,
+                      hintText:
+                          'Describe your video — e.g. "a 30s explainer on black holes"',
+                      hintStyle: TextStyle(
+                        color: AppColors.textFaint,
+                        fontSize: 14,
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(width: 12),
-            FilledButton.icon(
-              onPressed: onCreate,
-              icon: const Icon(Icons.auto_awesome, size: 18),
-              label: const Text('Create'),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.accentCyan,
-                foregroundColor: AppColors.background,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+              const SizedBox(width: 12),
+              FilledButton.icon(
+                onPressed: onCreate,
+                icon: const Icon(Icons.auto_awesome, size: 18),
+                label: const Text('Create'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.accentCyan,
+                  foregroundColor: AppColors.background,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 14,
+                  ),
+                ),
               ),
-            ),
-          ]),
+            ],
+          ),
         ],
       ),
     );
@@ -153,12 +171,15 @@ class _SectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(text.toUpperCase(),
-        style: const TextStyle(
-            color: AppColors.textFaint,
-            fontSize: 12,
-            letterSpacing: 1.2,
-            fontWeight: FontWeight.w600));
+    return Text(
+      text.toUpperCase(),
+      style: const TextStyle(
+        color: AppColors.textFaint,
+        fontSize: 12,
+        letterSpacing: 1.2,
+        fontWeight: FontWeight.w600,
+      ),
+    );
   }
 }
 
@@ -199,31 +220,49 @@ class _CapabilityCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Row(children: [
-            Text(cap.label,
+          Row(
+            children: [
+              Text(
+                cap.label,
                 style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600)),
-            const Spacer(),
-            if (cap.isLocalReady)
-              const Icon(Icons.computer, size: 13, color: AppColors.accentCyan),
-          ]),
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
+              if (cap.isLocalReady)
+                const Icon(
+                  Icons.computer,
+                  size: 13,
+                  color: AppColors.accentCyan,
+                ),
+            ],
+          ),
           const SizedBox(height: 6),
-          Row(children: [
-            Text('${cap.configured}/${cap.total}',
+          Row(
+            children: [
+              Text(
+                '${cap.configured}/${cap.total}',
                 style: AppTheme.mono.copyWith(
-                    color: ok ? AppColors.accentGreen : AppColors.textFaint,
-                    fontSize: 13)),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(ok ? 'configured' : cap.detail,
+                  color: ok ? AppColors.accentGreen : AppColors.textFaint,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  ok ? 'configured' : cap.detail,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                      color: AppColors.textFaint, fontSize: 11)),
-            ),
-          ]),
+                    color: AppColors.textFaint,
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -238,8 +277,7 @@ class _RecentList extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        for (final p in Catalog.recents)
-          _RecentRow(project: p, onOpen: onOpen),
+        for (final p in Catalog.recents) _RecentRow(project: p, onOpen: onOpen),
       ],
     );
   }
@@ -267,50 +305,65 @@ class _RecentRow extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: AppColors.border),
             ),
-            child: Row(children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: project.accent.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(8),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: project.accent.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    complete ? Icons.movie : Icons.edit_note,
+                    color: project.accent,
+                    size: 18,
+                  ),
                 ),
-                child: Icon(complete ? Icons.movie : Icons.edit_note,
-                    color: project.accent, size: 18),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(project.name,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        project.name,
                         style: const TextStyle(
-                            color: AppColors.textPrimary, fontSize: 14)),
-                    Text(
+                          color: AppColors.textPrimary,
+                          fontSize: 14,
+                        ),
+                      ),
+                      Text(
                         complete
                             ? 'Complete · ${project.updated}'
                             : 'Stage ${project.stagesDone}/${Catalog.pipelineStages} · ${project.updated}',
                         style: const TextStyle(
-                            color: AppColors.textFaint, fontSize: 12)),
-                  ],
-                ),
-              ),
-              SizedBox(
-                width: 80,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(3),
-                  child: LinearProgressIndicator(
-                    value: project.stagesDone / Catalog.pipelineStages,
-                    minHeight: 4,
-                    backgroundColor: AppColors.surfaceHigh,
-                    valueColor: AlwaysStoppedAnimation(project.accent),
+                          color: AppColors.textFaint,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              const Icon(Icons.chevron_right,
-                  color: AppColors.textFaint, size: 18),
-            ]),
+                SizedBox(
+                  width: 80,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(3),
+                    child: LinearProgressIndicator(
+                      value: project.stagesDone / Catalog.pipelineStages,
+                      minHeight: 4,
+                      backgroundColor: AppColors.surfaceHigh,
+                      valueColor: AlwaysStoppedAnimation(project.accent),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(
+                  Icons.chevron_right,
+                  color: AppColors.textFaint,
+                  size: 18,
+                ),
+              ],
+            ),
           ),
         ),
       ),

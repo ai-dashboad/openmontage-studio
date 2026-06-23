@@ -79,12 +79,16 @@ class _RailButton extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: active ? accent.withValues(alpha: 0.16) : Colors.transparent,
+              color: active
+                  ? accent.withValues(alpha: 0.16)
+                  : Colors.transparent,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon,
-                size: 20,
-                color: active ? accent : AppColors.textMuted),
+            child: Icon(
+              icon,
+              size: 20,
+              color: active ? accent : AppColors.textMuted,
+            ),
           ),
         ),
       ),

@@ -39,26 +39,38 @@ class _RenderDialog extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(children: [
-                  Icon(done ? Icons.check_circle : Icons.movie_creation_outlined,
-                      color:
-                          done ? AppColors.accentGreen : AppColors.accentCyan,
-                      size: 22),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(done ? 'Render complete' : 'Rendering',
+                Row(
+                  children: [
+                    Icon(
+                      done ? Icons.check_circle : Icons.movie_creation_outlined,
+                      color: done
+                          ? AppColors.accentGreen
+                          : AppColors.accentCyan,
+                      size: 22,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        done ? 'Render complete' : 'Rendering',
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 17,
-                            fontWeight: FontWeight.w600)),
-                  ),
-                  const SizedBox(width: 8),
-                  Text('Remotion · 1080p',
+                          color: AppColors.textPrimary,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Remotion · 1080p',
                       overflow: TextOverflow.ellipsis,
                       style: AppTheme.mono.copyWith(
-                          color: AppColors.textFaint, fontSize: 11)),
-                ]),
+                        color: AppColors.textFaint,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 20),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(4),
@@ -67,7 +79,8 @@ class _RenderDialog extends StatelessWidget {
                     minHeight: 6,
                     backgroundColor: AppColors.surfaceHigh,
                     valueColor: AlwaysStoppedAnimation(
-                        done ? AppColors.accentGreen : AppColors.accentCyan),
+                      done ? AppColors.accentGreen : AppColors.accentCyan,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -75,13 +88,12 @@ class _RenderDialog extends StatelessWidget {
                   done
                       ? 'Encoded $totalFrames / $totalFrames frames'
                       : 'Rendered $frame / $totalFrames frames',
-                  style: AppTheme.mono
-                      .copyWith(color: AppColors.textMuted, fontSize: 12),
+                  style: AppTheme.mono.copyWith(
+                    color: AppColors.textMuted,
+                    fontSize: 12,
+                  ),
                 ),
-                if (done) ...[
-                  const SizedBox(height: 16),
-                  _OutputRow(),
-                ],
+                if (done) ...[const SizedBox(height: 16), _OutputRow()],
                 const SizedBox(height: 20),
                 Align(
                   alignment: Alignment.centerRight,
@@ -96,8 +108,10 @@ class _RenderDialog extends StatelessWidget {
                         )
                       : TextButton(
                           onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('Cancel',
-                              style: TextStyle(color: AppColors.textMuted)),
+                          child: const Text(
+                            'Cancel',
+                            style: TextStyle(color: AppColors.textMuted),
+                          ),
                         ),
                 ),
               ],
@@ -119,21 +133,32 @@ class _OutputRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: AppColors.border),
       ),
-      child: Row(children: [
-        const Icon(Icons.movie_outlined,
-            size: 16, color: AppColors.accentGreen),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            'renders/${MockProject.name.toLowerCase().replaceAll(' ', '-')}.mp4',
-            style: AppTheme.mono
-                .copyWith(color: AppColors.textPrimary, fontSize: 12),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.movie_outlined,
+            size: 16,
+            color: AppColors.accentGreen,
           ),
-        ),
-        Text('${MockProject.totalSeconds.toStringAsFixed(0)}s · 4.1 MB',
-            style: AppTheme.mono
-                .copyWith(color: AppColors.textFaint, fontSize: 11)),
-      ]),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'renders/${MockProject.name.toLowerCase().replaceAll(' ', '-')}.mp4',
+              style: AppTheme.mono.copyWith(
+                color: AppColors.textPrimary,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          Text(
+            '${MockProject.totalSeconds.toStringAsFixed(0)}s · 4.1 MB',
+            style: AppTheme.mono.copyWith(
+              color: AppColors.textFaint,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

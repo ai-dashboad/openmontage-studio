@@ -24,8 +24,9 @@ Future<void> _enterStudio(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('boots to the home launcher with capabilities',
-      (WidgetTester tester) async {
+  testWidgets('boots to the home launcher with capabilities', (
+    WidgetTester tester,
+  ) async {
     await _boot(tester);
 
     expect(find.text('Reelforge'), findsOneWidget);
@@ -33,8 +34,9 @@ void main() {
     expect(find.text('Composition'), findsOneWidget);
   });
 
-  testWidgets('home opens the studio and shows the pipeline',
-      (WidgetTester tester) async {
+  testWidgets('home opens the studio and shows the pipeline', (
+    WidgetTester tester,
+  ) async {
     await _boot(tester);
     await _enterStudio(tester);
 
@@ -42,8 +44,9 @@ void main() {
     expect(find.textContaining('Composition 3/3'), findsOneWidget);
   });
 
-  testWidgets('selecting a scene updates the inspector',
-      (WidgetTester tester) async {
+  testWidgets('selecting a scene updates the inspector', (
+    WidgetTester tester,
+  ) async {
     await _boot(tester);
     await _enterStudio(tester);
 
@@ -57,8 +60,9 @@ void main() {
     expect(find.text('stat_card'), findsNothing);
   });
 
-  testWidgets('side panel shows agent chat and switches to asset gallery',
-      (WidgetTester tester) async {
+  testWidgets('side panel shows agent chat and switches to asset gallery', (
+    WidgetTester tester,
+  ) async {
     await _boot(tester);
     await _enterStudio(tester);
 
@@ -71,8 +75,9 @@ void main() {
     expect(find.text('Megacity skyline'), findsOneWidget);
   });
 
-  testWidgets('render button opens the progress dialog and completes',
-      (WidgetTester tester) async {
+  testWidgets('render button opens the progress dialog and completes', (
+    WidgetTester tester,
+  ) async {
     await _boot(tester);
     await _enterStudio(tester);
 
@@ -88,7 +93,9 @@ void main() {
     expect(find.text('Render complete'), findsNothing);
   });
 
-  testWidgets('settings opens the providers screen', (WidgetTester tester) async {
+  testWidgets('settings opens the providers screen', (
+    WidgetTester tester,
+  ) async {
     await _boot(tester);
 
     await tester.tap(find.text('Settings'));

@@ -22,8 +22,10 @@ class TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final spentFraction =
-        (MockProject.spentUsd / MockProject.budgetUsd).clamp(0.0, 1.0);
+    final spentFraction = (MockProject.spentUsd / MockProject.budgetUsd).clamp(
+      0.0,
+      1.0,
+    );
 
     return Container(
       height: 52,
@@ -36,17 +38,23 @@ class TopBar extends StatelessWidget {
         children: [
           IconButton(
             onPressed: onHome,
-            icon: const Icon(Icons.blur_circular,
-                color: AppColors.accentCyan, size: 20),
+            icon: const Icon(
+              Icons.blur_circular,
+              color: AppColors.accentCyan,
+              size: 20,
+            ),
             tooltip: 'Home',
             visualDensity: VisualDensity.compact,
           ),
           const SizedBox(width: 4),
-          const Text('Reelforge',
-              style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 15)),
+          const Text(
+            'Reelforge',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w600,
+              fontSize: 15,
+            ),
+          ),
           const SizedBox(width: 20),
           Flexible(child: _ProjectChip(name: MockProject.name)),
           const Spacer(),
@@ -67,8 +75,11 @@ class TopBar extends StatelessWidget {
           const SizedBox(width: 8),
           IconButton(
             onPressed: onOpenSettings,
-            icon: const Icon(Icons.settings_outlined,
-                color: AppColors.textMuted, size: 20),
+            icon: const Icon(
+              Icons.settings_outlined,
+              color: AppColors.textMuted,
+              size: 20,
+            ),
             tooltip: 'Settings & providers',
           ),
         ],
@@ -90,17 +101,24 @@ class _ProjectChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: AppColors.border),
       ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Flexible(
-          child: Text(name,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Text(
+              name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style:
-                  const TextStyle(color: AppColors.textPrimary, fontSize: 13)),
-        ),
-        const SizedBox(width: 6),
-        const Icon(Icons.expand_more, color: AppColors.textMuted, size: 16),
-      ]),
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          const Icon(Icons.expand_more, color: AppColors.textMuted, size: 16),
+        ],
+      ),
     );
   }
 }
@@ -122,13 +140,21 @@ class _OnlineToggle extends StatelessWidget {
         onTap: onTap,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(isOnline ? Icons.cloud_outlined : Icons.computer,
-                color: color, size: 16),
-            const SizedBox(width: 6),
-            Text(isOnline ? 'Online' : 'Offline',
-                style: TextStyle(color: color, fontSize: 12)),
-          ]),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isOnline ? Icons.cloud_outlined : Icons.computer,
+                color: color,
+                size: 16,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                isOnline ? 'Online' : 'Offline',
+                style: TextStyle(color: color, fontSize: 12),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -141,27 +167,36 @@ class _BudgetMeter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(mainAxisSize: MainAxisSize.min, children: [
-      const Icon(Icons.account_balance_wallet_outlined,
-          color: AppColors.textMuted, size: 15),
-      const SizedBox(width: 6),
-      Text(
-        '\$${MockProject.spentUsd.toStringAsFixed(2)} / \$${MockProject.budgetUsd.toStringAsFixed(0)}',
-        style: AppTheme.mono.copyWith(color: AppColors.textMuted, fontSize: 12),
-      ),
-      const SizedBox(width: 8),
-      SizedBox(
-        width: 64,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(3),
-          child: LinearProgressIndicator(
-            value: fraction == 0 ? 0.02 : fraction,
-            minHeight: 4,
-            backgroundColor: AppColors.surfaceHigh,
-            valueColor: const AlwaysStoppedAnimation(AppColors.accentGreen),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(
+          Icons.account_balance_wallet_outlined,
+          color: AppColors.textMuted,
+          size: 15,
+        ),
+        const SizedBox(width: 6),
+        Text(
+          '\$${MockProject.spentUsd.toStringAsFixed(2)} / \$${MockProject.budgetUsd.toStringAsFixed(0)}',
+          style: AppTheme.mono.copyWith(
+            color: AppColors.textMuted,
+            fontSize: 12,
           ),
         ),
-      ),
-    ]);
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 64,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: LinearProgressIndicator(
+              value: fraction == 0 ? 0.02 : fraction,
+              minHeight: 4,
+              backgroundColor: AppColors.surfaceHigh,
+              valueColor: const AlwaysStoppedAnimation(AppColors.accentGreen),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }

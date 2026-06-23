@@ -50,8 +50,11 @@ class _StageTrack extends StatelessWidget {
     return Row(
       children: [
         for (var i = 0; i < MockProject.stages.length; i++) ...[
-          Icon(MockProject.stages[i].status.glyph,
-              size: 13, color: MockProject.stages[i].status.color),
+          Icon(
+            MockProject.stages[i].status.glyph,
+            size: 13,
+            color: MockProject.stages[i].status.color,
+          ),
           const SizedBox(width: 5),
           Text(
             MockProject.stages[i].name,
@@ -60,8 +63,8 @@ class _StageTrack extends StatelessWidget {
               color: MockProject.stages[i].status == WorkStatus.awaiting
                   ? AppColors.accentAmber
                   : MockProject.stages[i].status == WorkStatus.done
-                      ? AppColors.textMuted
-                      : AppColors.textFaint,
+                  ? AppColors.textMuted
+                  : AppColors.textFaint,
               fontWeight: MockProject.stages[i].status == WorkStatus.awaiting
                   ? FontWeight.w700
                   : FontWeight.w400,
@@ -70,8 +73,10 @@ class _StageTrack extends StatelessWidget {
           if (i < MockProject.stages.length - 1)
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 8),
-              child: Text('—',
-                  style: TextStyle(color: AppColors.statusPending, fontSize: 11)),
+              child: Text(
+                '—',
+                style: TextStyle(color: AppColors.statusPending, fontSize: 11),
+              ),
             ),
         ],
       ],
@@ -92,51 +97,48 @@ class _SceneTrack extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, constraints) {
-      final width = constraints.maxWidth;
-      final playheadX =
-          (playheadSeconds / MockProject.totalSeconds) * width;
-      return Stack(
-        children: [
-          Row(
-            children: [
-              for (var i = 0; i < MockProject.scenes.length; i++)
-                Expanded(
-                  flex:
-                      (MockProject.scenes[i].durationSeconds * 10).round(),
-                  child: _SceneBlock(
-                    scene: MockProject.scenes[i],
-                    selected: i == selectedIndex,
-                    onTap: () => onSelect(i),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final playheadX = (playheadSeconds / MockProject.totalSeconds) * width;
+        return Stack(
+          children: [
+            Row(
+              children: [
+                for (var i = 0; i < MockProject.scenes.length; i++)
+                  Expanded(
+                    flex: (MockProject.scenes[i].durationSeconds * 10).round(),
+                    child: _SceneBlock(
+                      scene: MockProject.scenes[i],
+                      selected: i == selectedIndex,
+                      onTap: () => onSelect(i),
+                    ),
                   ),
-                ),
-            ],
-          ),
-          // Playhead.
-          Positioned(
-            left: playheadX.clamp(0, width - 1),
-            top: 0,
-            bottom: 0,
-            child: Container(
-              width: 2,
-              color: AppColors.accentCyan,
+              ],
             ),
-          ),
-          Positioned(
-            left: (playheadX - 5).clamp(0, width - 10),
-            top: -2,
-            child: Container(
-              width: 10,
-              height: 10,
-              decoration: const BoxDecoration(
-                color: AppColors.accentCyan,
-                shape: BoxShape.circle,
+            // Playhead.
+            Positioned(
+              left: playheadX.clamp(0, width - 1),
+              top: 0,
+              bottom: 0,
+              child: Container(width: 2, color: AppColors.accentCyan),
+            ),
+            Positioned(
+              left: (playheadX - 5).clamp(0, width - 10),
+              top: -2,
+              child: Container(
+                width: 10,
+                height: 10,
+                decoration: const BoxDecoration(
+                  color: AppColors.accentCyan,
+                  shape: BoxShape.circle,
+                ),
               ),
             ),
-          ),
-        ],
-      );
-    });
+          ],
+        );
+      },
+    );
   }
 }
 
@@ -172,18 +174,23 @@ class _SceneBlock extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(scene.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                      color: selected
-                          ? AppColors.textPrimary
-                          : AppColors.textMuted,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600)),
-              Text('${scene.durationSeconds.toStringAsFixed(1)}s',
-                  style: AppTheme.mono.copyWith(
-                      color: AppColors.textFaint, fontSize: 10)),
+              Text(
+                scene.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: selected ? AppColors.textPrimary : AppColors.textMuted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Text(
+                '${scene.durationSeconds.toStringAsFixed(1)}s',
+                style: AppTheme.mono.copyWith(
+                  color: AppColors.textFaint,
+                  fontSize: 10,
+                ),
+              ),
             ],
           ),
         ),

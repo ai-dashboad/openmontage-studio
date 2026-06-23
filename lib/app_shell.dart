@@ -25,16 +25,14 @@ class _AppShellState extends State<AppShell> {
   Widget build(BuildContext context) {
     return switch (_view) {
       AppView.home => HomeScreen(
-          onOpenProject: () => _go(AppView.studio),
-          onOpenSettings: () => _go(AppView.settings),
-        ),
+        onOpenProject: () => _go(AppView.studio),
+        onOpenSettings: () => _go(AppView.settings),
+      ),
       AppView.studio => StudioScreen(
-          onHome: () => _go(AppView.home),
-          onOpenSettings: () => _go(AppView.settings),
-        ),
-      AppView.settings => SettingsScreen(
-          onBack: () => _go(AppView.home),
-        ),
+        onHome: () => _go(AppView.home),
+        onOpenSettings: () => _go(AppView.settings),
+      ),
+      AppView.settings => SettingsScreen(onBack: () => _go(AppView.home)),
     };
   }
 }

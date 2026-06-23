@@ -11,16 +11,16 @@ enum ProviderStatus {
   unavailable; // needs a key or an install
 
   Color get color => switch (this) {
-        ProviderStatus.configured => AppColors.accentGreen,
-        ProviderStatus.available => AppColors.accentCyan,
-        ProviderStatus.unavailable => AppColors.textFaint,
-      };
+    ProviderStatus.configured => AppColors.accentGreen,
+    ProviderStatus.available => AppColors.accentCyan,
+    ProviderStatus.unavailable => AppColors.textFaint,
+  };
 
   String get label => switch (this) {
-        ProviderStatus.configured => 'Configured',
-        ProviderStatus.available => 'Available',
-        ProviderStatus.unavailable => 'Not set up',
-      };
+    ProviderStatus.configured => 'Configured',
+    ProviderStatus.available => 'Available',
+    ProviderStatus.unavailable => 'Not set up',
+  };
 }
 
 /// One concrete provider behind a capability (cloud API or local engine).
@@ -63,81 +63,93 @@ class Catalog {
 
   static const List<RecentProject> recents = [
     RecentProject(
-        name: 'The World in Numbers',
-        accent: AppColors.accentCyan,
-        stagesDone: 2,
-        updated: '2 minutes ago'),
+      name: 'The World in Numbers',
+      accent: AppColors.accentCyan,
+      stagesDone: 2,
+      updated: '2 minutes ago',
+    ),
     RecentProject(
-        name: 'How Music Rewires the Brain',
-        accent: AppColors.accentPurple,
-        stagesDone: 6,
-        updated: 'yesterday'),
+      name: 'How Music Rewires the Brain',
+      accent: AppColors.accentPurple,
+      stagesDone: 6,
+      updated: 'yesterday',
+    ),
     RecentProject(
-        name: 'Launch Reel — Q3',
-        accent: AppColors.accentAmber,
-        stagesDone: 7,
-        updated: 'last week'),
+      name: 'Launch Reel — Q3',
+      accent: AppColors.accentAmber,
+      stagesDone: 7,
+      updated: 'last week',
+    ),
   ];
 
   static const List<ProviderEntry> providers = [
     // Composition (always local).
     ProviderEntry(
-        name: 'Remotion',
-        capability: 'Composition',
-        kind: ProviderKind.local,
-        status: ProviderStatus.available,
-        hint: 'Node runtime'),
+      name: 'Remotion',
+      capability: 'Composition',
+      kind: ProviderKind.local,
+      status: ProviderStatus.available,
+      hint: 'Node runtime',
+    ),
     ProviderEntry(
-        name: 'FFmpeg',
-        capability: 'Composition',
-        kind: ProviderKind.local,
-        status: ProviderStatus.available,
-        hint: 'system binary'),
+      name: 'FFmpeg',
+      capability: 'Composition',
+      kind: ProviderKind.local,
+      status: ProviderStatus.available,
+      hint: 'system binary',
+    ),
     // Voiceover.
     ProviderEntry(
-        name: 'Piper',
-        capability: 'Voiceover',
-        kind: ProviderKind.local,
-        status: ProviderStatus.available,
-        hint: 'offline TTS'),
+      name: 'Piper',
+      capability: 'Voiceover',
+      kind: ProviderKind.local,
+      status: ProviderStatus.available,
+      hint: 'offline TTS',
+    ),
     ProviderEntry(
-        name: 'ElevenLabs',
-        capability: 'Voiceover',
-        kind: ProviderKind.cloud,
-        status: ProviderStatus.unavailable,
-        hint: 'ELEVENLABS_API_KEY'),
+      name: 'ElevenLabs',
+      capability: 'Voiceover',
+      kind: ProviderKind.cloud,
+      status: ProviderStatus.unavailable,
+      hint: 'ELEVENLABS_API_KEY',
+    ),
     // Image.
     ProviderEntry(
-        name: 'FLUX',
-        capability: 'Image',
-        kind: ProviderKind.cloud,
-        status: ProviderStatus.unavailable,
-        hint: 'FAL_KEY'),
+      name: 'FLUX',
+      capability: 'Image',
+      kind: ProviderKind.cloud,
+      status: ProviderStatus.unavailable,
+      hint: 'FAL_KEY',
+    ),
     ProviderEntry(
-        name: 'Local Diffusion',
-        capability: 'Image',
-        kind: ProviderKind.local,
-        status: ProviderStatus.unavailable,
-        hint: 'MLX / Metal'),
+      name: 'Local Diffusion',
+      capability: 'Image',
+      kind: ProviderKind.local,
+      status: ProviderStatus.unavailable,
+      hint: 'MLX / Metal',
+    ),
     // Video.
     ProviderEntry(
-        name: 'Seedance',
-        capability: 'Video',
-        kind: ProviderKind.cloud,
-        status: ProviderStatus.unavailable,
-        hint: 'FAL_KEY'),
+      name: 'Seedance',
+      capability: 'Video',
+      kind: ProviderKind.cloud,
+      status: ProviderStatus.unavailable,
+      hint: 'FAL_KEY',
+    ),
     // Agent brain.
     ProviderEntry(
-        name: 'Claude',
-        capability: 'Agent',
-        kind: ProviderKind.cloud,
-        status: ProviderStatus.unavailable,
-        hint: 'ANTHROPIC_API_KEY'),
+      name: 'Claude',
+      capability: 'Agent',
+      kind: ProviderKind.cloud,
+      status: ProviderStatus.unavailable,
+      hint: 'ANTHROPIC_API_KEY',
+    ),
     ProviderEntry(
-        name: 'Ollama',
-        capability: 'Agent',
-        kind: ProviderKind.local,
-        status: ProviderStatus.unavailable,
-        hint: 'local LLM'),
+      name: 'Ollama',
+      capability: 'Agent',
+      kind: ProviderKind.local,
+      status: ProviderStatus.unavailable,
+      hint: 'local LLM',
+    ),
   ];
 }

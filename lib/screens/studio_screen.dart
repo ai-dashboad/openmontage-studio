@@ -98,10 +98,7 @@ class _StudioScreenState extends State<StudioScreen> {
           Expanded(
             child: Row(
               children: [
-                LeftRail(
-                  selected: _railIndex,
-                  onSelect: _onRailSelect,
-                ),
+                LeftRail(selected: _railIndex, onSelect: _onRailSelect),
                 if (_panelOpen)
                   SidePanel(
                     railIndex: _railIndex,
@@ -151,8 +148,11 @@ class _CapabilityBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          const Icon(Icons.dashboard_customize_outlined,
-              size: 14, color: AppColors.textFaint),
+          const Icon(
+            Icons.dashboard_customize_outlined,
+            size: 14,
+            color: AppColors.textFaint,
+          ),
           const SizedBox(width: 10),
           // Capability chips scroll horizontally so a narrow window degrades
           // gracefully instead of overflowing.
@@ -170,9 +170,13 @@ class _CapabilityBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          Text('runtime: ${MockProject.renderRuntime}',
-              style: AppTheme.mono
-                  .copyWith(color: AppColors.textFaint, fontSize: 11)),
+          Text(
+            'runtime: ${MockProject.renderRuntime}',
+            style: AppTheme.mono.copyWith(
+              color: AppColors.textFaint,
+              fontSize: 11,
+            ),
+          ),
         ],
       ),
     );
@@ -185,27 +189,35 @@ class _CapabilityChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = cap.isConfigured ? AppColors.accentGreen : AppColors.textFaint;
+    final color = cap.isConfigured
+        ? AppColors.accentGreen
+        : AppColors.textFaint;
     return Tooltip(
       message: cap.detail,
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Container(
-          width: 6,
-          height: 6,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 5),
-        Text('${cap.label} ${cap.configured}/${cap.total}',
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            '${cap.label} ${cap.configured}/${cap.total}',
             style: TextStyle(
-                color: cap.isConfigured
-                    ? AppColors.textMuted
-                    : AppColors.textFaint,
-                fontSize: 11.5)),
-        if (cap.isLocalReady) ...[
-          const SizedBox(width: 3),
-          const Icon(Icons.computer, size: 11, color: AppColors.accentCyan),
+              color: cap.isConfigured
+                  ? AppColors.textMuted
+                  : AppColors.textFaint,
+              fontSize: 11.5,
+            ),
+          ),
+          if (cap.isLocalReady) ...[
+            const SizedBox(width: 3),
+            const Icon(Icons.computer, size: 11, color: AppColors.accentCyan),
+          ],
         ],
-      ]),
+      ),
     );
   }
 }

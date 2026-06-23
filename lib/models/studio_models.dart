@@ -8,16 +8,16 @@ enum WorkStatus {
   pending;
 
   Color get color => switch (this) {
-        WorkStatus.done => AppColors.statusDone,
-        WorkStatus.awaiting => AppColors.statusAwaiting,
-        WorkStatus.pending => AppColors.statusPending,
-      };
+    WorkStatus.done => AppColors.statusDone,
+    WorkStatus.awaiting => AppColors.statusAwaiting,
+    WorkStatus.pending => AppColors.statusPending,
+  };
 
   IconData get glyph => switch (this) {
-        WorkStatus.done => Icons.check_circle,
-        WorkStatus.awaiting => Icons.radio_button_checked,
-        WorkStatus.pending => Icons.radio_button_unchecked,
-      };
+    WorkStatus.done => Icons.check_circle,
+    WorkStatus.awaiting => Icons.radio_button_checked,
+    WorkStatus.pending => Icons.radio_button_unchecked,
+  };
 }
 
 /// One stage of the Reelforge production pipeline.
@@ -211,23 +211,26 @@ class MockProject {
   /// Mock candidate assets for the image family, with provenance.
   static const List<AssetItem> imageAssets = [
     AssetItem(
-        label: 'Megacity skyline',
-        provider: 'FLUX',
-        seed: 4471,
-        costUsd: 0.03,
-        accent: AppColors.accentCyan),
+      label: 'Megacity skyline',
+      provider: 'FLUX',
+      seed: 4471,
+      costUsd: 0.03,
+      accent: AppColors.accentCyan,
+    ),
     AssetItem(
-        label: 'Energy grid',
-        provider: 'FLUX',
-        seed: 9120,
-        costUsd: 0.03,
-        accent: AppColors.accentAmber),
+      label: 'Energy grid',
+      provider: 'FLUX',
+      seed: 9120,
+      costUsd: 0.03,
+      accent: AppColors.accentAmber,
+    ),
     AssetItem(
-        label: 'Connected planet',
-        provider: 'Imagen',
-        seed: 2025,
-        costUsd: 0.04,
-        accent: AppColors.accentPurple),
+      label: 'Connected planet',
+      provider: 'Imagen',
+      seed: 2025,
+      costUsd: 0.04,
+      accent: AppColors.accentPurple,
+    ),
   ];
 }
 

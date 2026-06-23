@@ -67,23 +67,36 @@ class _PanelHeader extends StatelessWidget {
       decoration: const BoxDecoration(
         border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
-      child: Row(children: [
-        Container(width: 8, height: 8, decoration: BoxDecoration(color: accent, shape: BoxShape.circle)),
-        const SizedBox(width: 8),
-        Text(title.toUpperCase(),
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            title.toUpperCase(),
             style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 12,
-                letterSpacing: 1.0,
-                fontWeight: FontWeight.w600)),
-        const Spacer(),
-        IconButton(
-          onPressed: onCollapse,
-          icon: const Icon(Icons.chevron_left, size: 18, color: AppColors.textMuted),
-          tooltip: 'Collapse panel',
-          visualDensity: VisualDensity.compact,
-        ),
-      ]),
+              color: AppColors.textPrimary,
+              fontSize: 12,
+              letterSpacing: 1.0,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const Spacer(),
+          IconButton(
+            onPressed: onCollapse,
+            icon: const Icon(
+              Icons.chevron_left,
+              size: 18,
+              color: AppColors.textMuted,
+            ),
+            tooltip: 'Collapse panel',
+            visualDensity: VisualDensity.compact,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -124,8 +137,10 @@ class _Bubble extends StatelessWidget {
       child: Column(
         crossAxisAlignment: align,
         children: [
-          Text(isUser ? 'You' : 'Agent',
-              style: const TextStyle(color: AppColors.textFaint, fontSize: 10)),
+          Text(
+            isUser ? 'You' : 'Agent',
+            style: const TextStyle(color: AppColors.textFaint, fontSize: 10),
+          ),
           const SizedBox(height: 3),
           Container(
             constraints: const BoxConstraints(maxWidth: 240),
@@ -135,9 +150,14 @@ class _Bubble extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: AppColors.border),
             ),
-            child: Text(message.text,
-                style: const TextStyle(
-                    color: AppColors.textPrimary, fontSize: 13, height: 1.35)),
+            child: Text(
+              message.text,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 13,
+                height: 1.35,
+              ),
+            ),
           ),
           if (message.artifact != null) _ArtifactCard(label: message.artifact!),
         ],
@@ -158,19 +178,30 @@ class _ArtifactCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.accentPurple.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.accentPurple.withValues(alpha: 0.4)),
-      ),
-      child: Row(children: [
-        const Icon(Icons.description_outlined,
-            size: 16, color: AppColors.accentPurple),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(label,
-              style: AppTheme.mono.copyWith(
-                  color: AppColors.textPrimary, fontSize: 12)),
+        border: Border.all(
+          color: AppColors.accentPurple.withValues(alpha: 0.4),
         ),
-        const Icon(Icons.open_in_new, size: 14, color: AppColors.textMuted),
-      ]),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.description_outlined,
+            size: 16,
+            color: AppColors.accentPurple,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: AppTheme.mono.copyWith(
+                color: AppColors.textPrimary,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          const Icon(Icons.open_in_new, size: 14, color: AppColors.textMuted),
+        ],
+      ),
     );
   }
 }
@@ -192,25 +223,33 @@ class _Composer extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: AppColors.border),
         ),
-        child: Row(children: [
-          const Expanded(
-            child: TextField(
-              style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
-              decoration: InputDecoration(
-                isDense: true,
-                border: InputBorder.none,
-                hintText: 'Message the agent…',
-                hintStyle: TextStyle(color: AppColors.textFaint, fontSize: 13),
+        child: Row(
+          children: [
+            const Expanded(
+              child: TextField(
+                style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                decoration: InputDecoration(
+                  isDense: true,
+                  border: InputBorder.none,
+                  hintText: 'Message the agent…',
+                  hintStyle: TextStyle(
+                    color: AppColors.textFaint,
+                    fontSize: 13,
+                  ),
+                ),
               ),
             ),
-          ),
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.arrow_upward,
-                size: 18, color: AppColors.accentPurple),
-            visualDensity: VisualDensity.compact,
-          ),
-        ]),
+            IconButton(
+              onPressed: () {},
+              icon: const Icon(
+                Icons.arrow_upward,
+                size: 18,
+                color: AppColors.accentPurple,
+              ),
+              visualDensity: VisualDensity.compact,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -223,7 +262,9 @@ class _AssetGallery extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Only the image family has mock candidates; others show an empty state.
-    final items = family == 'Images' ? MockProject.imageAssets : const <AssetItem>[];
+    final items = family == 'Images'
+        ? MockProject.imageAssets
+        : const <AssetItem>[];
 
     if (items.isEmpty) {
       return _EmptyFamily(family: family);
@@ -272,8 +313,11 @@ class _AssetCard extends StatelessWidget {
                 ),
               ),
               child: const Center(
-                child: Icon(Icons.image_outlined,
-                    color: AppColors.textFaint, size: 22),
+                child: Icon(
+                  Icons.image_outlined,
+                  color: AppColors.textFaint,
+                  size: 22,
+                ),
               ),
             ),
           ),
@@ -282,17 +326,25 @@ class _AssetCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(item.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        color: AppColors.textPrimary, fontSize: 12)),
+                Text(
+                  item.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 12,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text('${item.provider} · seed ${item.seed} · \$${item.costUsd.toStringAsFixed(2)}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTheme.mono.copyWith(
-                        color: AppColors.textFaint, fontSize: 9.5)),
+                Text(
+                  '${item.provider} · seed ${item.seed} · \$${item.costUsd.toStringAsFixed(2)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTheme.mono.copyWith(
+                    color: AppColors.textFaint,
+                    fontSize: 9.5,
+                  ),
+                ),
               ],
             ),
           ),
@@ -313,8 +365,10 @@ class _AddCard extends StatelessWidget {
         children: const [
           Icon(Icons.add, color: AppColors.textMuted, size: 20),
           SizedBox(height: 4),
-          Text('Regenerate',
-              style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+          Text(
+            'Regenerate',
+            style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+          ),
         ],
       ),
     );
@@ -333,16 +387,22 @@ class _EmptyFamily extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.inventory_2_outlined,
-                color: AppColors.textFaint, size: 28),
+            const Icon(
+              Icons.inventory_2_outlined,
+              color: AppColors.textFaint,
+              size: 28,
+            ),
             const SizedBox(height: 10),
-            Text('No $family yet',
-                style: const TextStyle(
-                    color: AppColors.textMuted, fontSize: 13)),
+            Text(
+              'No $family yet',
+              style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
+            ),
             const SizedBox(height: 4),
-            const Text('Generated in the assets stage',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.textFaint, fontSize: 11)),
+            const Text(
+              'Generated in the assets stage',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.textFaint, fontSize: 11),
+            ),
           ],
         ),
       ),
@@ -361,7 +421,10 @@ class DottedPlaceholder extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-            color: AppColors.border, style: BorderStyle.solid, width: 1),
+          color: AppColors.border,
+          style: BorderStyle.solid,
+          width: 1,
+        ),
         color: AppColors.background.withValues(alpha: 0.4),
       ),
       child: child,

@@ -102,4 +102,4 @@ flutter analyze           # static analysis
 
 ## License
 
-TBD.
+[MIT](LICENSE) © AI Dashboard.

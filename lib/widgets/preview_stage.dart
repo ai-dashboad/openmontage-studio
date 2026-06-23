@@ -33,10 +33,7 @@ class PreviewStage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          _Transport(
-            playheadSeconds: playheadSeconds,
-            onScrub: onScrub,
-          ),
+          _Transport(playheadSeconds: playheadSeconds, onScrub: onScrub),
         ],
       ),
     );
@@ -57,10 +54,7 @@ class _ScenePreview extends StatelessWidget {
         gradient: RadialGradient(
           center: Alignment.topCenter,
           radius: 1.2,
-          colors: [
-            scene.accent.withValues(alpha: 0.14),
-            AppColors.surface,
-          ],
+          colors: [scene.accent.withValues(alpha: 0.14), AppColors.surface],
         ),
       ),
       child: Stack(
@@ -91,7 +85,9 @@ class _ScenePreview extends StatelessWidget {
                     scene.subtitle,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                        color: AppColors.textMuted, fontSize: 14),
+                      color: AppColors.textMuted,
+                      fontSize: 14,
+                    ),
                   ),
                 ],
               ),
@@ -100,9 +96,13 @@ class _ScenePreview extends StatelessWidget {
           Positioned(
             bottom: 12,
             right: 14,
-            child: Text('1920 × 1080 · Remotion',
-                style: AppTheme.mono
-                    .copyWith(color: AppColors.textFaint, fontSize: 11)),
+            child: Text(
+              '1920 × 1080 · Remotion',
+              style: AppTheme.mono.copyWith(
+                color: AppColors.textFaint,
+                fontSize: 11,
+              ),
+            ),
           ),
         ],
       ),
@@ -123,8 +123,10 @@ class _TypeTag extends StatelessWidget {
         color: accent.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Text(type,
-          style: AppTheme.mono.copyWith(color: accent, fontSize: 11)),
+      child: Text(
+        type,
+        style: AppTheme.mono.copyWith(color: accent, fontSize: 11),
+      ),
     );
   }
 }
@@ -142,34 +144,52 @@ class _Transport extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(children: [
-      const Icon(Icons.play_circle_fill, color: AppColors.accentCyan, size: 28),
-      const SizedBox(width: 12),
-      Text(_fmt(playheadSeconds),
-          style:
-              AppTheme.mono.copyWith(color: AppColors.textPrimary, fontSize: 12)),
-      Expanded(
-        child: SliderTheme(
-          data: SliderThemeData(
-            trackHeight: 3,
-            activeTrackColor: AppColors.accentCyan,
-            inactiveTrackColor: AppColors.surfaceHigh,
-            thumbColor: AppColors.accentCyan,
-            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-            overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
-          ),
-          child: Slider(
-            value: playheadSeconds.clamp(0, MockProject.totalSeconds),
-            max: MockProject.totalSeconds,
-            onChanged: onScrub,
+    return Row(
+      children: [
+        const Icon(
+          Icons.play_circle_fill,
+          color: AppColors.accentCyan,
+          size: 28,
+        ),
+        const SizedBox(width: 12),
+        Text(
+          _fmt(playheadSeconds),
+          style: AppTheme.mono.copyWith(
+            color: AppColors.textPrimary,
+            fontSize: 12,
           ),
         ),
-      ),
-      Text(_fmt(MockProject.totalSeconds),
-          style:
-              AppTheme.mono.copyWith(color: AppColors.textMuted, fontSize: 12)),
-      const SizedBox(width: 12),
-      const Icon(Icons.volume_up_outlined, color: AppColors.textMuted, size: 18),
-    ]);
+        Expanded(
+          child: SliderTheme(
+            data: SliderThemeData(
+              trackHeight: 3,
+              activeTrackColor: AppColors.accentCyan,
+              inactiveTrackColor: AppColors.surfaceHigh,
+              thumbColor: AppColors.accentCyan,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+            ),
+            child: Slider(
+              value: playheadSeconds.clamp(0, MockProject.totalSeconds),
+              max: MockProject.totalSeconds,
+              onChanged: onScrub,
+            ),
+          ),
+        ),
+        Text(
+          _fmt(MockProject.totalSeconds),
+          style: AppTheme.mono.copyWith(
+            color: AppColors.textMuted,
+            fontSize: 12,
+          ),
+        ),
+        const SizedBox(width: 12),
+        const Icon(
+          Icons.volume_up_outlined,
+          color: AppColors.textMuted,
+          size: 18,
+        ),
+      ],
+    );
   }
 }
