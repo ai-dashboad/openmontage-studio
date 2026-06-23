@@ -11,6 +11,7 @@ class Inspector extends StatelessWidget {
     required this.scene,
     required this.stageName,
     required this.onApprove,
+    this.approveLabel = 'Approve & continue',
     this.onGenerateNarration,
     this.narrating = false,
   });
@@ -18,6 +19,7 @@ class Inspector extends StatelessWidget {
   final Scene scene;
   final String stageName;
   final VoidCallback onApprove;
+  final String approveLabel;
   final VoidCallback? onGenerateNarration;
   final bool narrating;
 
@@ -217,7 +219,7 @@ class Inspector extends StatelessWidget {
             child: FilledButton.icon(
               onPressed: onApprove,
               icon: const Icon(Icons.check, size: 18),
-              label: const Text('Approve & continue'),
+              label: Text(approveLabel),
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.accentGreen,
                 foregroundColor: AppColors.background,

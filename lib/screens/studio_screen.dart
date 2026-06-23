@@ -46,6 +46,13 @@ class _StudioScreenState extends State<StudioScreen> {
   bool _isOnline = true;
   bool _panelOpen = true;
 
+  /// Current pipeline stage (index into MockProject.stages). The studio opens on
+  /// scene_plan; approving walks it forward to compose.
+  int _stage = 2;
+
+  String get _stageName => MockProject.stages[_stage].name;
+  bool get _atCompose => _stageName == 'compose';
+
   /// The chat entry sits after the four asset families in the rail.
   static const int _chatIndex = 4;
 
@@ -98,8 +105,32 @@ class _StudioScreenState extends State<StudioScreen> {
     });
   }
 
-  void _approve() {
-    _toast('scene_plan approved — advancing to assets');
+  /// Approve the current stage. At compose this renders; otherwise it advances
+  /// and asks the agent (via the next stage's skill) what it will do.
+  void _approveStage() {
+    if (_atCompose) {
+      showRenderDialog(
+        context,
+        client: widget.render,
+        scenes: _renderPayload(),
+      );
+      return;
+    }
+    final current = _stageName;
+    if (_stage + 1 >= MockProject.stages.length) {
+      _toast('Published');
+      return;
+    }
+    setState(() => _stage += 1);
+    final next = _stageName;
+    _toast('$current approved → entering $next…');
+    // The next stage's skill drives the agent's plan for it (best-effort).
+    widget.agent
+        .summarizeStage(next)
+        .then((line) {
+          if (mounted) _toast('$next · ${line.trim()}');
+        })
+        .catchError((_) {});
   }
 
   /// Serializes the scene plan for the render provider.
@@ -148,17 +179,19 @@ class _StudioScreenState extends State<StudioScreen> {
   }
 
   void _toast(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        width: 420,
-        backgroundColor: AppColors.surfaceHigh,
-        content: Text(
-          message,
-          style: const TextStyle(color: AppColors.textPrimary),
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          width: 420,
+          backgroundColor: AppColors.surfaceHigh,
+          content: Text(
+            message,
+            style: const TextStyle(color: AppColors.textPrimary),
+          ),
         ),
-      ),
-    );
+      );
   }
 
   @override
@@ -198,8 +231,9 @@ class _StudioScreenState extends State<StudioScreen> {
                 ),
                 Inspector(
                   scene: _scene,
-                  stageName: 'scene_plan',
-                  onApprove: _approve,
+                  stageName: _stageName,
+                  approveLabel: _atCompose ? 'Render' : 'Approve & continue',
+                  onApprove: _approveStage,
                   onGenerateNarration: _generateNarration,
                   narrating: _narrating,
                 ),
@@ -209,6 +243,7 @@ class _StudioScreenState extends State<StudioScreen> {
           Timeline(
             scenes: _scenes,
             totalSeconds: _total,
+            currentStageIndex: _stage,
             selectedSceneIndex: _selectedScene,
             playheadSeconds: _playhead,
             onSelectScene: _selectScene,

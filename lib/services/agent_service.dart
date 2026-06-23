@@ -63,6 +63,21 @@ class AgentService {
     return _ollama.chat(messages);
   }
 
+  /// A one-line summary of what the agent will do for [stageName], grounded in
+  /// that stage's skill. Used as the pipeline advances stage to stage.
+  Future<String> summarizeStage(String stageName) async {
+    final skill = await _skill('stage-$stageName.md', _productionFallback);
+    return _ollama.chat([
+      {'role': 'system', 'content': skill},
+      {
+        'role': 'user',
+        'content':
+            'In one short sentence, state what you will do for the "$stageName" '
+            'stage of this video. No preamble.',
+      },
+    ]);
+  }
+
   static const String _productionFallback = '''
 You are the production agent inside OpenMontage Studio, a desktop app for
 AI-orchestrated video production. Videos move through a fixed pipeline:

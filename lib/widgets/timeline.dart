@@ -10,6 +10,7 @@ class Timeline extends StatelessWidget {
     super.key,
     required this.scenes,
     required this.totalSeconds,
+    required this.currentStageIndex,
     required this.selectedSceneIndex,
     required this.playheadSeconds,
     required this.onSelectScene,
@@ -17,6 +18,7 @@ class Timeline extends StatelessWidget {
 
   final List<Scene> scenes;
   final double totalSeconds;
+  final int currentStageIndex;
   final int selectedSceneIndex;
   final double playheadSeconds;
   final ValueChanged<int> onSelectScene;
@@ -33,7 +35,7 @@ class Timeline extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _StageTrack(),
+          _StageTrack(currentStageIndex: currentStageIndex),
           const SizedBox(height: 10),
           Expanded(
             child: _SceneTrack(
@@ -51,27 +53,32 @@ class Timeline extends StatelessWidget {
 }
 
 class _StageTrack extends StatelessWidget {
+  const _StageTrack({required this.currentStageIndex});
+  final int currentStageIndex;
+
+  WorkStatus _statusFor(int i) {
+    if (i < currentStageIndex) return WorkStatus.done;
+    if (i == currentStageIndex) return WorkStatus.awaiting;
+    return WorkStatus.pending;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
         for (var i = 0; i < MockProject.stages.length; i++) ...[
-          Icon(
-            MockProject.stages[i].status.glyph,
-            size: 13,
-            color: MockProject.stages[i].status.color,
-          ),
+          Icon(_statusFor(i).glyph, size: 13, color: _statusFor(i).color),
           const SizedBox(width: 5),
           Text(
             MockProject.stages[i].name,
             style: AppTheme.mono.copyWith(
               fontSize: 11.5,
-              color: MockProject.stages[i].status == WorkStatus.awaiting
+              color: _statusFor(i) == WorkStatus.awaiting
                   ? AppColors.accentAmber
-                  : MockProject.stages[i].status == WorkStatus.done
+                  : _statusFor(i) == WorkStatus.done
                   ? AppColors.textMuted
                   : AppColors.textFaint,
-              fontWeight: MockProject.stages[i].status == WorkStatus.awaiting
+              fontWeight: _statusFor(i) == WorkStatus.awaiting
                   ? FontWeight.w700
                   : FontWeight.w400,
             ),

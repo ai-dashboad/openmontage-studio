@@ -197,6 +197,27 @@ void main() {
     expect(find.textContaining('Samantha'), findsOneWidget);
   });
 
+  testWidgets('approving walks the pipeline forward to compose', (
+    tester,
+  ) async {
+    await _boot(tester);
+    await _enterStudio(tester);
+
+    // Opens on scene_plan: one approve button, and only the top-bar Render.
+    expect(find.text('Approve & continue'), findsOneWidget);
+    expect(find.text('Render'), findsOneWidget);
+
+    // Approve scene_plan -> assets -> edit -> compose.
+    for (var i = 0; i < 3; i++) {
+      await tester.tap(find.text('Approve & continue'));
+      await tester.pumpAndSettle();
+    }
+
+    // At compose the inspector's action becomes Render (now two Render labels).
+    expect(find.text('Approve & continue'), findsNothing);
+    expect(find.text('Render'), findsNWidgets(2));
+  });
+
   testWidgets('render button renders an MP4 via the provider', (tester) async {
     await _boot(tester);
     await _enterStudio(tester);
