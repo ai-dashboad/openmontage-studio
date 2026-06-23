@@ -3,6 +3,8 @@ import 'app_shell.dart';
 import 'auth/auth_gate.dart';
 import 'services/agent_service.dart';
 import 'services/auth_client.dart';
+import 'services/project_store.dart';
+import 'services/provider_manager.dart';
 import 'services/render_client.dart';
 import 'services/session_store.dart';
 import 'services/tts_client.dart';
@@ -10,7 +12,19 @@ import 'services/update_checker.dart';
 import 'theme/app_theme.dart';
 
 void main() {
-  runApp(const OpenMontageStudioApp());
+  WidgetsFlutterBinding.ensureInitialized();
+  final agent = AgentService();
+  final tts = TtsClient();
+  final provider = ProviderManager(agent: agent, media: tts);
+  // The app drives `say`/ffmpeg/Remotion directly — no server to start. The UI
+  // probes tool availability when the home/studio mounts.
+  runApp(
+    OpenMontageStudioApp(
+      agentService: agent,
+      ttsClient: tts,
+      providerManager: provider,
+    ),
+  );
 }
 
 class OpenMontageStudioApp extends StatelessWidget {
@@ -23,6 +37,8 @@ class OpenMontageStudioApp extends StatelessWidget {
     this.sessionStore,
     this.initialAccount,
     this.updateChecker,
+    this.providerManager,
+    this.projectStore,
   });
 
   /// Injected in tests; default to live providers. [initialAccount] starts the
@@ -34,6 +50,8 @@ class OpenMontageStudioApp extends StatelessWidget {
   final SessionStore? sessionStore;
   final Account? initialAccount;
   final UpdateChecker? updateChecker;
+  final ProviderManager? providerManager;
+  final ProjectStore? projectStore;
 
   @override
   Widget build(BuildContext context) {
@@ -51,6 +69,8 @@ class OpenMontageStudioApp extends StatelessWidget {
           ttsClient: ttsClient,
           renderClient: renderClient,
           updateChecker: updateChecker ?? UpdateChecker(),
+          providerManager: providerManager,
+          projectStore: projectStore,
           session: session,
         ),
       ),

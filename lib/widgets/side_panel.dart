@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/studio_models.dart';
 import '../services/agent_service.dart';
+import '../services/conversation.dart';
 import '../theme/app_theme.dart';
 
 /// The secondary surface between the rail and the preview. It shows either the
@@ -12,14 +13,14 @@ class SidePanel extends StatelessWidget {
     required this.railIndex,
     required this.chatIndex,
     required this.onCollapse,
-    required this.agent,
+    required this.conversation,
   });
 
   /// Selected rail entry: 0..3 are asset families, [chatIndex] is the agent chat.
   final int railIndex;
   final int chatIndex;
   final VoidCallback onCollapse;
-  final AgentService agent;
+  final ConversationController conversation;
 
   static const _familyTitles = ['Images', 'Clips', 'Voice', 'Music'];
 
@@ -43,7 +44,7 @@ class SidePanel extends StatelessWidget {
           ),
           Expanded(
             child: isChat
-                ? _AgentChat(agent: agent)
+                ? _AgentChat(conversation: conversation)
                 : _AssetGallery(family: _familyTitles[railIndex]),
           ),
         ],
@@ -105,64 +106,38 @@ class _PanelHeader extends StatelessWidget {
 }
 
 class _AgentChat extends StatefulWidget {
-  const _AgentChat({required this.agent});
-  final AgentService agent;
+  const _AgentChat({required this.conversation});
+  final ConversationController conversation;
 
   @override
   State<_AgentChat> createState() => _AgentChatState();
 }
 
 class _AgentChatState extends State<_AgentChat> {
-  final List<ChatMessage> _messages = [...MockProject.conversation];
   final ScrollController _scroll = ScrollController();
-  bool _sending = false;
   AgentStatus? _status;
 
   @override
   void initState() {
     super.initState();
+    widget.conversation.addListener(_onConversationChanged);
     _refreshStatus();
   }
 
   @override
   void dispose() {
+    widget.conversation.removeListener(_onConversationChanged);
     _scroll.dispose();
     super.dispose();
   }
 
-  Future<void> _refreshStatus() async {
-    final s = await widget.agent.status();
-    if (mounted) setState(() => _status = s);
+  void _onConversationChanged() {
+    if (mounted) setState(_scrollToEnd);
   }
 
-  Future<void> _send(String text) async {
-    if (text.trim().isEmpty || _sending) return;
-    setState(() {
-      _messages.add(ChatMessage(role: ChatRole.user, text: text.trim()));
-      _sending = true;
-    });
-    _scrollToEnd();
-    try {
-      final reply = await widget.agent.reply(_messages);
-      if (!mounted) return;
-      setState(
-        () => _messages.add(ChatMessage(role: ChatRole.agent, text: reply)),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(
-        () => _messages.add(
-          ChatMessage(
-            role: ChatRole.agent,
-            text:
-                'Could not reach the local agent. Is Ollama running with a model pulled?',
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _sending = false);
-      _scrollToEnd();
-    }
+  Future<void> _refreshStatus() async {
+    final s = await widget.conversation.agent.status();
+    if (mounted) setState(() => _status = s);
   }
 
   void _scrollToEnd() {
@@ -179,6 +154,8 @@ class _AgentChatState extends State<_AgentChat> {
 
   @override
   Widget build(BuildContext context) {
+    final messages = widget.conversation.messages;
+    final sending = widget.conversation.sending;
     return Column(
       children: [
         _StatusBar(status: _status),
@@ -187,12 +164,15 @@ class _AgentChatState extends State<_AgentChat> {
             controller: _scroll,
             padding: const EdgeInsets.all(12),
             children: [
-              for (final m in _messages) _Bubble(message: m),
-              if (_sending) const _Thinking(),
+              for (final m in messages) _Bubble(message: m),
+              if (sending) const _Thinking(),
             ],
           ),
         ),
-        _Composer(enabled: !_sending, onSend: _send),
+        _Composer(
+          enabled: !sending,
+          onSend: (t) => widget.conversation.send(t),
+        ),
       ],
     );
   }
@@ -398,6 +378,7 @@ class _ComposerState extends State<_Composer> {
           children: [
             Expanded(
               child: TextField(
+                key: const Key('agentComposer'),
                 controller: _controller,
                 enabled: widget.enabled,
                 onSubmitted: (_) => _submit(),
@@ -432,179 +413,73 @@ class _ComposerState extends State<_Composer> {
   }
 }
 
+/// Honest, per-family state. Today the studio composes designed motion cards
+/// and on-device narration; image/clip/music generation is on the roadmap. No
+/// fake candidates are shown.
 class _AssetGallery extends StatelessWidget {
   const _AssetGallery({required this.family});
   final String family;
 
-  @override
-  Widget build(BuildContext context) {
-    // Only the image family has mock candidates; others show an empty state.
-    final items = family == 'Images'
-        ? MockProject.imageAssets
-        : const <AssetItem>[];
-
-    if (items.isEmpty) {
-      return _EmptyFamily(family: family);
-    }
-
-    return GridView.count(
-      crossAxisCount: 2,
-      padding: const EdgeInsets.all(12),
-      crossAxisSpacing: 10,
-      mainAxisSpacing: 10,
-      childAspectRatio: 0.82,
-      children: [
-        for (final a in items) _AssetCard(item: a),
-        const _AddCard(),
-      ],
-    );
-  }
-}
-
-class _AssetCard extends StatelessWidget {
-  const _AssetCard({required this.item});
-  final AssetItem item;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    item.accent.withValues(alpha: 0.35),
-                    AppColors.surfaceHigh,
-                  ],
-                ),
-              ),
-              child: const Center(
-                child: Icon(
-                  Icons.image_outlined,
-                  color: AppColors.textFaint,
-                  size: 22,
-                ),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${item.provider} · seed ${item.seed} · \$${item.costUsd.toStringAsFixed(2)}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTheme.mono.copyWith(
-                    color: AppColors.textFaint,
-                    fontSize: 9.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AddCard extends StatelessWidget {
-  const _AddCard();
+  ({IconData icon, String title, String body}) get _copy => switch (family) {
+    'Voice' => (
+      icon: Icons.graphic_eq,
+      title: 'Narration is generated per scene',
+      body:
+          'Select a scene and use “Generate narration” in the inspector — the '
+          'voice is synthesized on your Mac and baked into the render.',
+    ),
+    'Images' => (
+      icon: Icons.image_outlined,
+      title: 'On-device image generation is on the roadmap',
+      body:
+          'Today the studio composes designed motion cards locally. Connecting '
+          'a local or cloud image model is a planned upgrade.',
+    ),
+    'Clips' => (
+      icon: Icons.movie_outlined,
+      title: 'Video clips are on the roadmap',
+      body:
+          'The render composites designed scenes with transitions today. '
+          'Generated B-roll is a planned upgrade.',
+    ),
+    _ => (
+      icon: Icons.music_note_outlined,
+      title: 'Music is on the roadmap',
+      body:
+          'Renders carry your narration today. A local/licensed music track is '
+          'a planned upgrade.',
+    ),
+  };
 
   @override
   Widget build(BuildContext context) {
-    return DottedPlaceholder(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: const [
-          Icon(Icons.add, color: AppColors.textMuted, size: 20),
-          SizedBox(height: 4),
-          Text(
-            'Regenerate',
-            style: TextStyle(color: AppColors.textMuted, fontSize: 11),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _EmptyFamily extends StatelessWidget {
-  const _EmptyFamily({required this.family});
-  final String family;
-
-  @override
-  Widget build(BuildContext context) {
+    final c = _copy;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
-              Icons.inventory_2_outlined,
-              color: AppColors.textFaint,
-              size: 28,
-            ),
-            const SizedBox(height: 10),
+            Icon(c.icon, color: AppColors.textFaint, size: 30),
+            const SizedBox(height: 12),
             Text(
-              'No $family yet',
+              c.title,
+              textAlign: TextAlign.center,
               style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
             ),
-            const SizedBox(height: 4),
-            const Text(
-              'Generated in the assets stage',
+            const SizedBox(height: 6),
+            Text(
+              c.body,
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.textFaint, fontSize: 11),
+              style: const TextStyle(
+                color: AppColors.textFaint,
+                fontSize: 11.5,
+                height: 1.4,
+              ),
             ),
           ],
         ),
       ),
-    );
-  }
-}
-
-/// A dashed-border placeholder cell used for the "regenerate" action.
-class DottedPlaceholder extends StatelessWidget {
-  const DottedPlaceholder({super.key, required this.child});
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: AppColors.border,
-          style: BorderStyle.solid,
-          width: 1,
-        ),
-        color: AppColors.background.withValues(alpha: 0.4),
-      ),
-      child: child,
     );
   }
 }

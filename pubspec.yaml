@@ -44,6 +44,9 @@ dependencies:
   # Open the system browser for third-party (OAuth) sign-in.
   url_launcher: ^6.3.0
 
+  # Native "Save a copy…" dialog for exporting a finished render.
+  file_selector: ^1.0.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

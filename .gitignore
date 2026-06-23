@@ -47,3 +47,10 @@ app.*.map.json
 # Packaged installers / downloads (not committed)
 dist/
 site/public/download/
+
+# Remotion composer deps (installed via npm)
+remotion-composer/node_modules/
+remotion-composer/out/
+
+# Generated narration staged for Remotion renders
+remotion-composer/public/studio_narration.wav

@@ -12,12 +12,16 @@ class PreviewStage extends StatelessWidget {
     required this.playheadSeconds,
     required this.totalSeconds,
     required this.onScrub,
+    this.isPlaying = false,
+    this.onTogglePlay,
   });
 
   final Scene scene;
   final double playheadSeconds;
   final double totalSeconds;
   final ValueChanged<double> onScrub;
+  final bool isPlaying;
+  final VoidCallback? onTogglePlay;
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +34,16 @@ class PreviewStage extends StatelessWidget {
             child: Center(
               child: AspectRatio(
                 aspectRatio: 16 / 9,
-                child: _ScenePreview(scene: scene),
+                // Cross-fade between scenes as the playhead moves, so playback
+                // reads as a sequence rather than a static card.
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 350),
+                  switchInCurve: Curves.easeOut,
+                  child: _ScenePreview(
+                    key: ValueKey(scene.id),
+                    scene: scene,
+                  ),
+                ),
               ),
             ),
           ),
@@ -39,6 +52,8 @@ class PreviewStage extends StatelessWidget {
             playheadSeconds: playheadSeconds,
             totalSeconds: totalSeconds,
             onScrub: onScrub,
+            isPlaying: isPlaying,
+            onTogglePlay: onTogglePlay,
           ),
         ],
       ),
@@ -47,11 +62,20 @@ class PreviewStage extends StatelessWidget {
 }
 
 class _ScenePreview extends StatelessWidget {
-  const _ScenePreview({required this.scene});
+  const _ScenePreview({super.key, required this.scene});
   final Scene scene;
+
+  double _headlineSize() {
+    if (scene.type == 'stat_card') return 64;
+    if (scene.headline.length > 26) return 30;
+    if (scene.headline.length > 16) return 40;
+    return 48;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final isStat = scene.type == 'stat_card';
+    final headlineColor = isStat ? scene.accent : AppColors.textPrimary;
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -72,29 +96,65 @@ class _ScenePreview extends StatelessWidget {
           ),
           Center(
             child: Padding(
-              padding: const EdgeInsets.all(28),
+              padding: const EdgeInsets.symmetric(horizontal: 36),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    scene.headline,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: scene.type == 'stat_card' ? 56 : 30,
-                      fontWeight: FontWeight.w700,
-                      height: 1.1,
+                  // Kicker — the scene title, mirroring the rendered output.
+                  if (scene.title.isNotEmpty)
+                    Text(
+                      scene.title.toUpperCase(),
+                      textAlign: TextAlign.center,
+                      style: AppTheme.mono.copyWith(
+                        color: scene.accent,
+                        fontSize: 12,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+                  // Accent bar, like the rendered headline rule.
+                  Container(
+                    width: 48,
+                    height: 3,
+                    decoration: BoxDecoration(
+                      color: scene.accent,
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  Text(
-                    scene.subtitle,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: AppColors.textMuted,
-                      fontSize: 14,
+                  const SizedBox(height: 16),
+                  if (scene.headline.isNotEmpty)
+                    Text(
+                      scene.headline,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: headlineColor,
+                        fontSize: _headlineSize(),
+                        fontWeight: FontWeight.w700,
+                        height: 1.1,
+                      ),
                     ),
-                  ),
+                  if (scene.isChart && scene.chartData.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      height: 120,
+                      child: _MiniBars(
+                        data: scene.chartData,
+                        accent: scene.accent,
+                      ),
+                    ),
+                  ],
+                  if (scene.subtitle.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      scene.subtitle,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 15,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -103,7 +163,7 @@ class _ScenePreview extends StatelessWidget {
             bottom: 12,
             right: 14,
             child: Text(
-              '1920 × 1080 · Remotion',
+              '1920 × 1080 · live preview',
               style: AppTheme.mono.copyWith(
                 color: AppColors.textFaint,
                 fontSize: 11,
@@ -142,10 +202,14 @@ class _Transport extends StatelessWidget {
     required this.playheadSeconds,
     required this.totalSeconds,
     required this.onScrub,
+    this.isPlaying = false,
+    this.onTogglePlay,
   });
   final double playheadSeconds;
   final double totalSeconds;
   final ValueChanged<double> onScrub;
+  final bool isPlaying;
+  final VoidCallback? onTogglePlay;
 
   String _fmt(double s) {
     final m = (s ~/ 60).toString().padLeft(1, '0');
@@ -157,10 +221,15 @@ class _Transport extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const Icon(
-          Icons.play_circle_fill,
-          color: AppColors.accentCyan,
-          size: 28,
+        IconButton(
+          onPressed: onTogglePlay,
+          tooltip: isPlaying ? 'Pause' : 'Play',
+          visualDensity: VisualDensity.compact,
+          icon: Icon(
+            isPlaying ? Icons.pause_circle_filled : Icons.play_circle_fill,
+            color: AppColors.accentCyan,
+            size: 28,
+          ),
         ),
         const SizedBox(width: 12),
         Text(
@@ -200,6 +269,78 @@ class _Transport extends StatelessWidget {
           color: AppColors.textMuted,
           size: 18,
         ),
+      ],
+    );
+  }
+}
+
+/// A compact bar chart for the preview — a faithful-enough stand-in for the
+/// rendered chart so editing the data shows up live.
+class _MiniBars extends StatelessWidget {
+  const _MiniBars({required this.data, required this.accent});
+  final List<ChartDatum> data;
+  final Color accent;
+
+  static const _palette = [
+    AppColors.accentPurple,
+    AppColors.accentCyan,
+    AppColors.accentAmber,
+    AppColors.accentGreen,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final maxValue = data
+        .map((d) => d.value)
+        .fold<double>(1, (a, b) => b > a ? b : a);
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        for (var i = 0; i < data.length; i++)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(
+                  data[i].value == data[i].value.roundToDouble()
+                      ? data[i].value.toStringAsFixed(0)
+                      : data[i].value.toString(),
+                  style: AppTheme.mono.copyWith(
+                    color: AppColors.textMuted,
+                    fontSize: 10,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Container(
+                  width: 26,
+                  height: (data[i].value / maxValue * 70).clamp(3, 70),
+                  decoration: BoxDecoration(
+                    color: _palette[i % _palette.length],
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(3),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                SizedBox(
+                  width: 40,
+                  child: Text(
+                    data[i].label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: AppColors.textFaint,
+                      fontSize: 9.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
       ],
     );
   }

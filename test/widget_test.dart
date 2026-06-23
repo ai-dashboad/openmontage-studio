@@ -11,11 +11,43 @@ import 'package:http/testing.dart';
 import 'package:openmontage_studio/main.dart';
 import 'package:openmontage_studio/services/agent_service.dart';
 import 'package:openmontage_studio/services/auth_client.dart';
+import 'package:openmontage_studio/services/command_runner.dart';
 import 'package:openmontage_studio/services/ollama_client.dart';
+import 'package:openmontage_studio/services/provider_manager.dart';
 import 'package:openmontage_studio/services/render_client.dart';
 import 'package:openmontage_studio/services/tts_client.dart';
 import 'package:openmontage_studio/services/update_checker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+/// A fake command runner so the media clients exercise their real logic without
+/// spawning say/ffmpeg. `npx` is reported absent so Remotion isn't offered.
+class _FakeRunner implements CommandRunner {
+  @override
+  Future<CommandResult> run(
+    String exe,
+    List<String> args, {
+    String? workingDirectory,
+    Duration timeout = const Duration(seconds: 180),
+  }) async {
+    if (exe == 'afinfo') {
+      return const CommandResult(0, 'estimated duration: 2.30', '');
+    }
+    if (exe == 'say' && args.contains('?')) {
+      return const CommandResult(
+        0,
+        'Samantha            en_US    # hi\nAlex                en_US    # hi',
+        '',
+      );
+    }
+    return const CommandResult(0, '', '');
+  }
+
+  @override
+  void spawn(String exe, List<String> args) {}
+
+  @override
+  Future<bool> exists(String exe) async => exe == 'say' || exe == 'ffmpeg';
+}
 
 const _testAccount = Account(
   id: 'tester',
@@ -53,52 +85,10 @@ AgentService _mockAgent({String reply = 'Here is a three-beat plan.'}) {
   return AgentService(ollama: OllamaClient(httpClient: client));
 }
 
-/// A mock TTS provider that reports a synthesized clip without touching disk.
-TtsClient _mockTts() {
-  final client = MockClient((request) async {
-    if (request.url.path.endsWith('/health')) {
-      return http.Response(jsonEncode({'ok': true}), 200);
-    }
-    if (request.url.path.endsWith('/tts/play')) {
-      return http.Response(jsonEncode({'ok': true}), 200);
-    }
-    if (request.url.path.endsWith('/tts')) {
-      return http.Response(
-        jsonEncode({
-          'path': '/tmp/narration_1.aiff',
-          'voice': 'Samantha',
-          'bytes': 104142,
-          'seconds': 2.3,
-        }),
-        200,
-      );
-    }
-    return http.Response('not found', 404);
-  });
-  return TtsClient(httpClient: client);
-}
-
-/// A mock render provider that reports a finished MP4 without touching ffmpeg.
-RenderClient _mockRender() {
-  final client = MockClient((request) async {
-    if (request.url.path.endsWith('/render')) {
-      return http.Response(
-        jsonEncode({
-          'path': '/tmp/openmontage-tts/render/render.mp4',
-          'scenes': 5,
-          'seconds': 23.0,
-          'bytes': 73853,
-        }),
-        200,
-      );
-    }
-    if (request.url.path.endsWith('/open')) {
-      return http.Response(jsonEncode({'ok': true}), 200);
-    }
-    return http.Response('not found', 404);
-  });
-  return RenderClient(httpClient: client);
-}
+/// Media clients backed by the fake runner — exercise real client logic with no
+/// real processes.
+TtsClient _mockTts() => TtsClient(runner: _FakeRunner());
+RenderClient _mockRender() => RenderClient(runner: _FakeRunner());
 
 /// A mock update checker that reports the given latest [version] (default the
 /// current one, i.e. no update), without hitting the network.
@@ -124,14 +114,19 @@ Future<void> _boot(
   RenderClient? render,
   UpdateChecker? update,
 }) async {
+  SharedPreferences.setMockInitialValues({});
   await tester.binding.setSurfaceSize(_desktop);
   addTearDown(() => tester.binding.setSurfaceSize(null));
+  final a = agent ?? _mockAgent();
+  final t = tts ?? _mockTts();
+  final r = render ?? _mockRender();
   await tester.pumpWidget(
     OpenMontageStudioApp(
-      agentService: agent ?? _mockAgent(),
-      ttsClient: tts ?? _mockTts(),
-      renderClient: render ?? _mockRender(),
+      agentService: a,
+      ttsClient: t,
+      renderClient: r,
       updateChecker: update ?? _mockUpdate(),
+      providerManager: ProviderManager(agent: a, media: t, runner: _FakeRunner()),
       initialAccount: _testAccount, // bypass the auth gate
     ),
   );
@@ -165,7 +160,7 @@ void main() {
     await _enterStudio(tester);
 
     expect(find.text('scene_plan'), findsWidgets);
-    expect(find.textContaining('Composition 3/3'), findsOneWidget);
+    expect(find.textContaining('Composition · ready'), findsOneWidget);
   });
 
   testWidgets('a brief generates a plan that drives the studio', (
@@ -215,7 +210,10 @@ void main() {
     // The live status bar shows the connected local model.
     expect(find.text('qwen2.5:latest'), findsOneWidget);
 
-    await tester.enterText(find.byType(TextField).last, 'Plan it');
+    await tester.enterText(
+      find.byKey(const Key('agentComposer')),
+      'Plan it',
+    );
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
 
@@ -229,8 +227,39 @@ void main() {
     await tester.tap(find.text('Generate narration'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Narration ready'), findsOneWidget);
-    expect(find.textContaining('Samantha'), findsOneWidget);
+    expect(find.textContaining('Narration ready · Samantha'), findsOneWidget);
+  });
+
+  testWidgets('a chart scene renders its data in the preview', (tester) async {
+    await _boot(tester);
+    await _enterStudio(tester);
+
+    await tester.tap(find.text('Megacities'));
+    await tester.pumpAndSettle();
+
+    // The mini chart in the preview reflects the scene's real data.
+    expect(find.text('Tokyo'), findsWidgets);
+    expect(find.text('37'), findsWidgets);
+  });
+
+  testWidgets('adding and deleting scenes changes the plan length', (
+    tester,
+  ) async {
+    await _boot(tester);
+    await _enterStudio(tester);
+
+    // The sample opens with 5 scenes, selection on the 2nd.
+    expect(find.text('SCENE 2 / 5'), findsOneWidget);
+
+    // Add a scene after the selection -> 6 scenes, selection moves to it.
+    await tester.tap(find.byTooltip('Add scene'));
+    await tester.pumpAndSettle();
+    expect(find.text('SCENE 3 / 6'), findsOneWidget);
+
+    // Delete it -> back to 5.
+    await tester.tap(find.byTooltip('Delete scene'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('/ 5'), findsOneWidget);
   });
 
   testWidgets('approving walks the pipeline forward to compose', (
@@ -267,6 +296,89 @@ void main() {
     await tester.tap(find.text('Done'));
     await tester.pumpAndSettle();
     expect(find.text('Render complete'), findsNothing);
+  });
+
+  testWidgets('editing the headline updates the preview and undo reverts it', (
+    tester,
+  ) async {
+    await _boot(tester);
+    await _enterStudio(tester);
+    // A taller window so the inspector's scroll list lays out the headline
+    // field (the voice picker pushes it down in the default height).
+    await tester.binding.setSurfaceSize(const Size(1280, 1100));
+    await tester.pumpAndSettle();
+
+    // The sample opens on the Population scene ("8.1B").
+    expect(find.text('8.1B'), findsWidgets);
+
+    await tester.enterText(
+      find.byKey(const Key('inspectorHeadline')),
+      'Twelve',
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Twelve'), findsWidgets); // preview reflects the edit
+    expect(find.text('8.1B'), findsNothing);
+
+    await tester.tap(find.text('Undo'));
+    await tester.pumpAndSettle();
+    expect(find.text('8.1B'), findsWidgets);
+    expect(find.text('Twelve'), findsNothing);
+
+    await tester.tap(find.text('Redo'));
+    await tester.pumpAndSettle();
+    expect(find.text('Twelve'), findsWidgets);
+  });
+
+  testWidgets('the preview play button toggles playback', (tester) async {
+    await _boot(tester);
+    await _enterStudio(tester);
+
+    expect(find.byTooltip('Play'), findsOneWidget);
+    await tester.tap(find.byTooltip('Play'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(find.byTooltip('Pause'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Pause'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Play'), findsOneWidget);
+  });
+
+  testWidgets('revise asks the agent and updates the scene', (tester) async {
+    await _boot(
+      tester,
+      agent: _mockAgent(reply: '{"headline":"Revised line","subtitle":"new"}'),
+    );
+    await _enterStudio(tester);
+
+    await tester.tap(find.text('Revise with agent'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('reviseInput')), 'punchier');
+    await tester.tap(find.widgetWithText(FilledButton, 'Revise'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Revised line'), findsWidgets);
+  });
+
+  testWidgets('a completed render advances the pipeline to export', (
+    tester,
+  ) async {
+    await _boot(tester);
+    await _enterStudio(tester);
+
+    // Walk scene_plan -> assets -> edit -> compose.
+    for (var i = 0; i < 3; i++) {
+      await tester.tap(find.text('Approve & continue'));
+      await tester.pumpAndSettle();
+    }
+    // At compose the inspector action is Render (last of top-bar + inspector).
+    await tester.tap(find.widgetWithText(FilledButton, 'Render').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
+
+    // A successful render advances to the publish stage: action becomes Export.
+    expect(find.text('Export video'), findsOneWidget);
   });
 
   testWidgets('settings opens the providers screen', (tester) async {

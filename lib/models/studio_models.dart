@@ -27,6 +27,24 @@ class PipelineStage {
   final WorkStatus status;
 }
 
+/// One labelled value in a chart scene (bar/pie). Real, editable data — not
+/// values synthesized from the subtitle.
+class ChartDatum {
+  const ChartDatum({required this.label, required this.value});
+  final String label;
+  final double value;
+
+  Map<String, dynamic> toJson() => {'label': label, 'value': value};
+
+  static ChartDatum fromJson(Map<String, dynamic> j) => ChartDatum(
+    label: j['label'] as String? ?? '',
+    value: (j['value'] as num?)?.toDouble() ?? 0,
+  );
+
+  ChartDatum copyWith({String? label, double? value}) =>
+      ChartDatum(label: label ?? this.label, value: value ?? this.value);
+}
+
 /// A single scene inside the current stage's plan, carrying just enough of the
 /// `scene_plan` artifact to drive the preview and inspector.
 class Scene {
@@ -39,6 +57,7 @@ class Scene {
     required this.accent,
     this.headline = '',
     this.subtitle = '',
+    this.chartData = const [],
   });
 
   final String id;
@@ -50,7 +69,65 @@ class Scene {
   final String headline;
   final String subtitle;
 
+  /// Data points for chart scenes (`bar_chart` / `pie_chart`). Empty otherwise.
+  final List<ChartDatum> chartData;
+
   double get durationSeconds => endSeconds - startSeconds;
+
+  bool get isChart => type == 'bar_chart' || type == 'pie_chart';
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'type': type,
+    'title': title,
+    'start': startSeconds,
+    'end': endSeconds,
+    'accent': accent.toARGB32(),
+    'headline': headline,
+    'subtitle': subtitle,
+    if (chartData.isNotEmpty)
+      'chartData': [for (final d in chartData) d.toJson()],
+  };
+
+  static Scene fromJson(Map<String, dynamic> j) => Scene(
+    id: j['id'] as String? ?? 'scene',
+    type: j['type'] as String? ?? 'text_card',
+    title: j['title'] as String? ?? 'Scene',
+    startSeconds: (j['start'] as num?)?.toDouble() ?? 0,
+    endSeconds: (j['end'] as num?)?.toDouble() ?? 4,
+    accent: Color((j['accent'] as num?)?.toInt() ?? 0xFF22D3EE),
+    headline: j['headline'] as String? ?? '',
+    subtitle: j['subtitle'] as String? ?? '',
+    chartData: ((j['chartData'] as List<dynamic>?) ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .map(ChartDatum.fromJson)
+        .toList(),
+  );
+
+  /// Returns a copy with the given fields replaced. Editing the inspector flows
+  /// through this so the preview and timeline update from the same scene value.
+  Scene copyWith({
+    String? type,
+    String? title,
+    double? startSeconds,
+    double? endSeconds,
+    Color? accent,
+    String? headline,
+    String? subtitle,
+    List<ChartDatum>? chartData,
+  }) {
+    return Scene(
+      id: id,
+      type: type ?? this.type,
+      title: title ?? this.title,
+      startSeconds: startSeconds ?? this.startSeconds,
+      endSeconds: endSeconds ?? this.endSeconds,
+      accent: accent ?? this.accent,
+      headline: headline ?? this.headline,
+      subtitle: subtitle ?? this.subtitle,
+      chartData: chartData ?? this.chartData,
+    );
+  }
 }
 
 /// One capability family in the provider menu (the "X of Y configured" rollup).
@@ -126,8 +203,14 @@ class MockProject {
       startSeconds: 7.5,
       endSeconds: 13,
       accent: AppColors.accentPurple,
-      headline: 'Illustrative megacity population',
-      subtitle: 'Tokyo · Delhi · Shanghai · Sao Paulo',
+      headline: 'Largest megacities',
+      subtitle: 'Population, millions',
+      chartData: [
+        ChartDatum(label: 'Tokyo', value: 37),
+        ChartDatum(label: 'Delhi', value: 32),
+        ChartDatum(label: 'Shanghai', value: 29),
+        ChartDatum(label: 'Sao Paulo', value: 22),
+      ],
     ),
     Scene(
       id: 'world-energy',
@@ -136,8 +219,14 @@ class MockProject {
       startSeconds: 13,
       endSeconds: 18,
       accent: AppColors.accentAmber,
-      headline: 'Illustrative energy mix',
-      subtitle: 'Renewables claiming a bigger share each year',
+      headline: 'Global energy mix',
+      subtitle: 'Share by source',
+      chartData: [
+        ChartDatum(label: 'Renewables', value: 30),
+        ChartDatum(label: 'Gas', value: 28),
+        ChartDatum(label: 'Coal', value: 25),
+        ChartDatum(label: 'Nuclear', value: 17),
+      ],
     ),
     Scene(
       id: 'world-close',
@@ -154,37 +243,37 @@ class MockProject {
   static const List<Capability> capabilities = [
     Capability(
       label: 'Composition',
-      configured: 3,
-      total: 3,
-      detail: 'Remotion · HyperFrames · FFmpeg',
+      configured: 1,
+      total: 1,
+      detail: 'ffmpeg · on-device',
       isLocalReady: true,
     ),
     Capability(
       label: 'Voiceover',
       configured: 1,
-      total: 3,
-      detail: 'Piper (offline ready)',
+      total: 1,
+      detail: 'macOS say · on-device',
       isLocalReady: true,
     ),
     Capability(
       label: 'Image',
       configured: 0,
-      total: 9,
-      detail: 'Set FAL_KEY to unlock',
+      total: 0,
+      detail: 'roadmap',
       isLocalReady: false,
     ),
     Capability(
       label: 'Video',
       configured: 0,
-      total: 13,
-      detail: 'Unlock the biggest upgrade',
+      total: 0,
+      detail: 'roadmap',
       isLocalReady: false,
     ),
     Capability(
       label: 'Music',
       configured: 0,
-      total: 2,
-      detail: 'ElevenLabs · Suno',
+      total: 0,
+      detail: 'roadmap',
       isLocalReady: false,
     ),
   ];

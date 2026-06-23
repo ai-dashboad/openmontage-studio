@@ -606,7 +606,20 @@ async function oauthStart(
   const state = new URL(request.url).searchParams.get('state');
   if (!state) return json({ error: 'state is required' }, 400);
 
-  await env.SESSIONS.put(`oauthstate:${state}`, provider, { expirationTtl: 600 });
+  // Persist the pending flow in D1 (strongly consistent) so /callback and the
+  // app's /exchange poll read it reliably. Opportunistically drop stale flows.
+  const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+  await env.DB.prepare('DELETE FROM oauth_flow WHERE created_at < ?')
+    .bind(cutoff)
+    .run();
+  await env.DB.prepare(
+    `INSERT INTO oauth_flow (state, provider, token, created_at)
+     VALUES (?, ?, NULL, ?)
+     ON CONFLICT(state) DO UPDATE SET provider = excluded.provider,
+       token = NULL, created_at = excluded.created_at`,
+  )
+    .bind(state, provider, new Date().toISOString())
+    .run();
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri(provider),
@@ -656,8 +669,14 @@ async function oauthCallback(
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
   if (!code || !state) return htmlPage('Sign-in failed: missing code');
-  const expected = await env.SESSIONS.get(`oauthstate:${state}`);
-  if (expected !== provider) return htmlPage('Sign-in failed: bad state');
+  const flow = await env.DB.prepare(
+    'SELECT provider FROM oauth_flow WHERE state = ?',
+  )
+    .bind(state)
+    .first<{ provider: string }>();
+  if (!flow || flow.provider !== provider) {
+    return htmlPage('Sign-in failed: bad state');
+  }
 
   const accessToken = await exchangeCode(cfg, provider, code, env);
   if (!accessToken) return htmlPage('Sign-in failed: token exchange');
@@ -700,18 +719,27 @@ async function oauthCallback(
   }
 
   const token = await createSession(env, row!.id);
-  await env.SESSIONS.put(`oauthresult:${state}`, token, { expirationTtl: 300 });
-  await env.SESSIONS.delete(`oauthstate:${state}`);
+  await env.DB.prepare('UPDATE oauth_flow SET token = ? WHERE state = ?')
+    .bind(token, state)
+    .run();
   return htmlPage('Signed in ✓');
 }
 
 // Polled by the app to collect the session once the browser flow completes.
+// Reads from D1 so the result is visible immediately after /callback writes it.
 async function oauthExchange(request: Request, env: Env): Promise<Response> {
   const state = new URL(request.url).searchParams.get('state');
   if (!state) return json({ error: 'state is required' }, 400);
-  const token = await env.SESSIONS.get(`oauthresult:${state}`);
-  if (!token) return json({ pending: true }, 202);
-  await env.SESSIONS.delete(`oauthresult:${state}`); // one-time
+  const flow = await env.DB.prepare(
+    'SELECT token FROM oauth_flow WHERE state = ?',
+  )
+    .bind(state)
+    .first<{ token: string | null }>();
+  if (!flow || !flow.token) return json({ pending: true }, 202);
+  const token = flow.token;
+  await env.DB.prepare('DELETE FROM oauth_flow WHERE state = ?')
+    .bind(state)
+    .run(); // one-time
   const userId = await env.SESSIONS.get(`sess:${token}`);
   const row = userId ? await loadUser(env, userId) : null;
   if (!row) return json({ error: 'session expired' }, 410);
