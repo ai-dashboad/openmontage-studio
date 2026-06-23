@@ -166,7 +166,7 @@ void main() {
     await _enterStudio(tester);
 
     expect(find.text('scene_plan'), findsWidgets);
-    expect(find.textContaining('Composition 3/3'), findsOneWidget);
+    expect(find.textContaining('Composition · ready'), findsOneWidget);
   });
 
   testWidgets('a brief generates a plan that drives the studio', (

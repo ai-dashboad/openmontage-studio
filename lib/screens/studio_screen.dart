@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import '../models/studio_models.dart';
@@ -66,7 +69,6 @@ class _StudioScreenState extends State<StudioScreen>
     with SingleTickerProviderStateMixin {
   int _selectedScene = 0;
   int _railIndex = 4; // Start on the agent chat.
-  bool _isOnline = true;
   bool _panelOpen = true;
 
   // Preview playback: a ticker advances the playhead in real time.
@@ -96,6 +98,7 @@ class _StudioScreenState extends State<StudioScreen>
 
   String get _stageName => MockProject.stages[_stage].name;
   bool get _atCompose => _stageName == 'compose';
+  bool get _atPublish => _stageName == 'publish';
 
   /// The chat entry sits after the four asset families in the rail.
   static const int _chatIndex = 4;
@@ -423,6 +426,10 @@ class _StudioScreenState extends State<StudioScreen>
   /// and the agent posts what it produced for the new stage (a visible artifact
   /// in the chat), not just a toast.
   void _approveStage() {
+    if (_atPublish) {
+      _exportFinal();
+      return;
+    }
     if (_atCompose) {
       _openRender();
       return;
@@ -468,10 +475,46 @@ class _StudioScreenState extends State<StudioScreen>
         _renderPath = result.path;
         _renderSeconds = result.seconds;
         _renderBytes = result.bytes;
+        // A successful render advances the pipeline to its final stage.
+        if (_atCompose) {
+          final publishIndex = MockProject.stages.indexWhere(
+            (s) => s.name == 'publish',
+          );
+          if (publishIndex >= 0) setState(() => _stage = publishIndex);
+        }
         _save();
       },
     );
   }
+
+  /// Publish: export a copy of the finished render to a location the user picks.
+  Future<void> _exportFinal() async {
+    if (_renderPath == null) {
+      _toast('Render the video first (compose stage).');
+      return;
+    }
+    final location = await getSaveLocation(
+      suggestedName: '${_safeName(_projectName)}.mp4',
+      acceptedTypeGroups: const [
+        XTypeGroup(label: 'MP4 video', extensions: ['mp4']),
+      ],
+    );
+    if (location == null) return;
+    try {
+      await File(_renderPath!).copy(location.path);
+      if (!mounted) return;
+      _toast('Published — exported to ${location.path}');
+      _conversation.addAgentLine(
+        'Published the final video.',
+        artifact: 'publish · ${_safeName(_projectName)}.mp4',
+      );
+    } catch (_) {
+      if (mounted) _toast('Could not export the file.');
+    }
+  }
+
+  String _safeName(String name) =>
+      name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-');
 
   /// Serializes the scene plan for the render provider.
   List<Map<String, dynamic>> _renderPayload() {
@@ -541,9 +584,7 @@ class _StudioScreenState extends State<StudioScreen>
       body: Column(
         children: [
           TopBar(
-            isOnline: _isOnline,
             projectName: _projectName,
-            onToggleOnline: () => setState(() => _isOnline = !_isOnline),
             provider: widget.provider,
             onRetryServices: () async {
               await widget.provider.ensureRunning();
@@ -579,7 +620,11 @@ class _StudioScreenState extends State<StudioScreen>
                   stageName: _stageName,
                   sceneIndex: _selectedScene,
                   sceneCount: _scenes.length,
-                  approveLabel: _atCompose ? 'Render' : 'Approve & continue',
+                  approveLabel: _atPublish
+                      ? 'Export video'
+                      : _atCompose
+                      ? 'Render'
+                      : 'Approve & continue',
                   onApprove: _approveStage,
                   onSceneChanged: _updateScene,
                   onDurationChanged: _setDuration,
@@ -684,7 +729,7 @@ class _CapabilityChip extends StatelessWidget {
           ),
           const SizedBox(width: 5),
           Text(
-            '${cap.label} ${cap.configured}/${cap.total}',
+            '${cap.label} · ${cap.isConfigured ? "ready" : "roadmap"}',
             style: TextStyle(
               color: cap.isConfigured
                   ? AppColors.textMuted

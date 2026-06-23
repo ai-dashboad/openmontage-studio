@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
-import '../models/studio_models.dart';
 import '../services/provider_manager.dart';
 import '../theme/app_theme.dart';
 
-/// Region A — the unified toolbar: project identity, live service status,
-/// online/offline state, the render action, and a budget meter.
+/// Region A — the unified toolbar: project identity, live service status, the
+/// render action, and an honest "runs locally, free" indicator.
 class TopBar extends StatelessWidget {
   const TopBar({
     super.key,
-    required this.isOnline,
-    required this.onToggleOnline,
     this.projectName = 'Untitled video',
     this.provider,
     this.onRetryServices,
@@ -18,9 +15,7 @@ class TopBar extends StatelessWidget {
     this.onRender,
   });
 
-  final bool isOnline;
   final String projectName;
-  final VoidCallback onToggleOnline;
   final ProviderManager? provider;
   final VoidCallback? onRetryServices;
   final VoidCallback? onHome;
@@ -29,11 +24,6 @@ class TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final spentFraction = (MockProject.spentUsd / MockProject.budgetUsd).clamp(
-      0.0,
-      1.0,
-    );
-
     return Container(
       height: 52,
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -72,9 +62,7 @@ class TopBar extends StatelessWidget {
             ),
             const SizedBox(width: 16),
           ],
-          _OnlineToggle(isOnline: isOnline, onTap: onToggleOnline),
-          const SizedBox(width: 16),
-          _BudgetMeter(fraction: spentFraction),
+          const _LocalChip(),
           const SizedBox(width: 16),
           FilledButton.icon(
             onPressed: onRender,
@@ -212,80 +200,35 @@ class _ServiceStatus extends StatelessWidget {
   }
 }
 
-class _OnlineToggle extends StatelessWidget {
-  const _OnlineToggle({required this.isOnline, required this.onTap});
-  final bool isOnline;
-  final VoidCallback onTap;
+/// An honest indicator: all generation runs on-device, at no cost.
+class _LocalChip extends StatelessWidget {
+  const _LocalChip();
 
   @override
   Widget build(BuildContext context) {
-    final color = isOnline ? AppColors.accentCyan : AppColors.accentAmber;
     return Tooltip(
-      message: isOnline
-          ? 'Online — cloud providers available'
-          : 'Offline — local providers only',
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                isOnline ? Icons.cloud_outlined : Icons.computer,
-                color: color,
-                size: 16,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                isOnline ? 'Online' : 'Offline',
-                style: TextStyle(color: color, fontSize: 12),
-              ),
-            ],
+      message: 'Everything runs on your Mac — no cloud, no API keys, no cost',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: AppColors.accentGreen.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: AppColors.accentGreen.withValues(alpha: 0.35),
           ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Icon(Icons.computer, color: AppColors.accentGreen, size: 14),
+            SizedBox(width: 6),
+            Text(
+              'Local · free',
+              style: TextStyle(color: AppColors.accentGreen, fontSize: 12),
+            ),
+          ],
         ),
       ),
-    );
-  }
-}
-
-class _BudgetMeter extends StatelessWidget {
-  const _BudgetMeter({required this.fraction});
-  final double fraction;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Icon(
-          Icons.account_balance_wallet_outlined,
-          color: AppColors.textMuted,
-          size: 15,
-        ),
-        const SizedBox(width: 6),
-        Text(
-          '\$${MockProject.spentUsd.toStringAsFixed(2)} / \$${MockProject.budgetUsd.toStringAsFixed(0)}',
-          style: AppTheme.mono.copyWith(
-            color: AppColors.textMuted,
-            fontSize: 12,
-          ),
-        ),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 64,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(3),
-            child: LinearProgressIndicator(
-              value: fraction == 0 ? 0.02 : fraction,
-              minHeight: 4,
-              backgroundColor: AppColors.surfaceHigh,
-              valueColor: const AlwaysStoppedAnimation(AppColors.accentGreen),
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

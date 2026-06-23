@@ -123,7 +123,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               ),
               const SizedBox(height: 32),
-              const _SectionLabel('Optional cloud providers'),
+              const _SectionLabel('Capabilities'),
               const SizedBox(height: 12),
               const _CapabilityGrid(),
               const SizedBox(height: 32),
@@ -409,16 +409,16 @@ class _CapabilityCard extends StatelessWidget {
           Row(
             children: [
               Text(
-                '${cap.configured}/${cap.total}',
+                ok ? 'Ready' : 'Roadmap',
                 style: AppTheme.mono.copyWith(
                   color: ok ? AppColors.accentGreen : AppColors.textFaint,
-                  fontSize: 13,
+                  fontSize: 12,
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  ok ? 'configured' : cap.detail,
+                  cap.detail,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
