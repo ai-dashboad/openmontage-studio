@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/studio_models.dart';
+import '../services/agent_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/inspector.dart';
 import '../widgets/left_rail.dart';
@@ -13,8 +14,14 @@ import '../widgets/top_bar.dart';
 /// the timeline, preview, and inspector together: selected scene, playhead, the
 /// active rail surface, and online/offline mode.
 class StudioScreen extends StatefulWidget {
-  const StudioScreen({super.key, this.onHome, this.onOpenSettings});
+  const StudioScreen({
+    super.key,
+    required this.agent,
+    this.onHome,
+    this.onOpenSettings,
+  });
 
+  final AgentService agent;
   final VoidCallback? onHome;
   final VoidCallback? onOpenSettings;
 
@@ -104,6 +111,7 @@ class _StudioScreenState extends State<StudioScreen> {
                     railIndex: _railIndex,
                     chatIndex: _chatIndex,
                     onCollapse: () => setState(() => _panelOpen = false),
+                    agent: widget.agent,
                   ),
                 Expanded(
                   child: PreviewStage(

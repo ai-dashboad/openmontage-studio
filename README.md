@@ -91,12 +91,41 @@ flutter test              # widget tests
 flutter analyze           # static analysis
 ```
 
+## Local agent (live)
+
+The agent chat in the studio is wired to a real **local LLM via
+[Ollama](https://ollama.com)** — no API key, fully offline. This is the first
+real backend connection: `OllamaClient` talks to `http://localhost:11434`,
+which is the "localhost provider" boundary the rest of the engine will follow.
+
+To use it:
+
+```bash
+# one-time: install Ollama and pull a model
+brew install ollama
+ollama serve            # starts the local server on :11434
+ollama pull qwen2.5     # ~4.7 GB
+
+# verify the app's client can reach it
+dart run tool/agent_smoke.dart
+```
+
+With Ollama running, the chat header shows the connected model (e.g.
+`qwen2.5:latest`) and messages get real replies. If Ollama is down, the chat
+degrades gracefully and the header shows `agent offline`. The macOS sandbox
+needs the `com.apple.security.network.client` entitlement (already set) to reach
+localhost.
+
+This is the minimal agent loop: a grounded conversational turn over a local
+model. The next step is tool-calling — letting the agent emit structured stage
+artifacts (a `scene_plan`) that drive the timeline directly.
+
 ## Roadmap
 
-1. **Agent loop** — an embedded LLM tool-use loop that proposes and drives the
-   pipeline stages. The single biggest piece of work.
+1. **Agent tool-calling** — let the local/cloud agent emit structured pipeline
+   artifacts (scene plans, edit decisions) that drive the UI, not just chat.
 2. **Engine bridge** — reach cloud and local generators uniformly over `localhost`
-   endpoints, so online/offline is just "which endpoint."
+   endpoints, so online/offline is just "which endpoint." (Started: Ollama.)
 3. **Live preview** — embed a real renderer instead of the placeholder.
 4. **Packaging** — bundle the render toolchain, download models on demand.
 

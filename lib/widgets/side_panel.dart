@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/studio_models.dart';
+import '../services/agent_service.dart';
 import '../theme/app_theme.dart';
 
 /// The secondary surface between the rail and the preview. It shows either the
@@ -11,12 +12,14 @@ class SidePanel extends StatelessWidget {
     required this.railIndex,
     required this.chatIndex,
     required this.onCollapse,
+    required this.agent,
   });
 
   /// Selected rail entry: 0..3 are asset families, [chatIndex] is the agent chat.
   final int railIndex;
   final int chatIndex;
   final VoidCallback onCollapse;
+  final AgentService agent;
 
   static const _familyTitles = ['Images', 'Clips', 'Voice', 'Music'];
 
@@ -40,7 +43,7 @@ class SidePanel extends StatelessWidget {
           ),
           Expanded(
             child: isChat
-                ? const _AgentChat()
+                ? _AgentChat(agent: agent)
                 : _AssetGallery(family: _familyTitles[railIndex]),
           ),
         ],
@@ -101,23 +104,169 @@ class _PanelHeader extends StatelessWidget {
   }
 }
 
-class _AgentChat extends StatelessWidget {
-  const _AgentChat();
+class _AgentChat extends StatefulWidget {
+  const _AgentChat({required this.agent});
+  final AgentService agent;
+
+  @override
+  State<_AgentChat> createState() => _AgentChatState();
+}
+
+class _AgentChatState extends State<_AgentChat> {
+  final List<ChatMessage> _messages = [...MockProject.conversation];
+  final ScrollController _scroll = ScrollController();
+  bool _sending = false;
+  AgentStatus? _status;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshStatus();
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  Future<void> _refreshStatus() async {
+    final s = await widget.agent.status();
+    if (mounted) setState(() => _status = s);
+  }
+
+  Future<void> _send(String text) async {
+    if (text.trim().isEmpty || _sending) return;
+    setState(() {
+      _messages.add(ChatMessage(role: ChatRole.user, text: text.trim()));
+      _sending = true;
+    });
+    _scrollToEnd();
+    try {
+      final reply = await widget.agent.reply(_messages);
+      if (!mounted) return;
+      setState(
+        () => _messages.add(ChatMessage(role: ChatRole.agent, text: reply)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(
+        () => _messages.add(
+          ChatMessage(
+            role: ChatRole.agent,
+            text:
+                'Could not reach the local agent. Is Ollama running with a model pulled?',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _sending = false);
+      _scrollToEnd();
+    }
+  }
+
+  void _scrollToEnd() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scroll.hasClients) {
+        _scroll.animateTo(
+          _scroll.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
+        _StatusBar(status: _status),
         Expanded(
           child: ListView(
+            controller: _scroll,
             padding: const EdgeInsets.all(12),
             children: [
-              for (final m in MockProject.conversation) _Bubble(message: m),
+              for (final m in _messages) _Bubble(message: m),
+              if (_sending) const _Thinking(),
             ],
           ),
         ),
-        const _Composer(),
+        _Composer(enabled: !_sending, onSend: _send),
       ],
+    );
+  }
+}
+
+/// Live connection indicator for the local agent.
+class _StatusBar extends StatelessWidget {
+  const _StatusBar({required this.status});
+  final AgentStatus? status;
+
+  @override
+  Widget build(BuildContext context) {
+    final connected = status?.connected ?? false;
+    final color = connected ? AppColors.accentGreen : AppColors.accentAmber;
+    final label = status == null
+        ? 'connecting…'
+        : connected
+        ? status!.model
+        : 'agent offline';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: AppColors.border)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: AppTheme.mono.copyWith(color: color, fontSize: 11),
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Text(
+            'local',
+            style: TextStyle(color: AppColors.textFaint, fontSize: 10),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Thinking extends StatelessWidget {
+  const _Thinking();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 12,
+            height: 12,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: AppColors.accentPurple,
+            ),
+          ),
+          SizedBox(width: 8),
+          Text(
+            'Agent is thinking…',
+            style: TextStyle(color: AppColors.textFaint, fontSize: 12),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -206,8 +355,30 @@ class _ArtifactCard extends StatelessWidget {
   }
 }
 
-class _Composer extends StatelessWidget {
-  const _Composer();
+class _Composer extends StatefulWidget {
+  const _Composer({required this.enabled, required this.onSend});
+  final bool enabled;
+  final ValueChanged<String> onSend;
+
+  @override
+  State<_Composer> createState() => _ComposerState();
+}
+
+class _ComposerState extends State<_Composer> {
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final text = _controller.text;
+    if (text.trim().isEmpty || !widget.enabled) return;
+    _controller.clear();
+    widget.onSend(text);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -225,10 +396,16 @@ class _Composer extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Expanded(
+            Expanded(
               child: TextField(
-                style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
-                decoration: InputDecoration(
+                controller: _controller,
+                enabled: widget.enabled,
+                onSubmitted: (_) => _submit(),
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                ),
+                decoration: const InputDecoration(
                   isDense: true,
                   border: InputBorder.none,
                   hintText: 'Message the agent…',
@@ -240,7 +417,7 @@ class _Composer extends StatelessWidget {
               ),
             ),
             IconButton(
-              onPressed: () {},
+              onPressed: widget.enabled ? _submit : null,
               icon: const Icon(
                 Icons.arrow_upward,
                 size: 18,

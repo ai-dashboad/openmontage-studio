@@ -1,32 +1,64 @@
 // Widget tests covering navigation (home -> studio -> settings), the render
-// dialog, and the studio's see -> tweak -> approve wiring.
+// dialog, the studio wiring, and the live agent chat (backed by a mock Ollama).
+
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 import 'package:openmontage_studio/main.dart';
+import 'package:openmontage_studio/services/agent_service.dart';
+import 'package:openmontage_studio/services/ollama_client.dart';
 
 // The shell targets a minimum desktop window of 1100x720.
 const _desktop = Size(1280, 832);
 
-/// Boots the app at desktop size and returns once the first frame settles.
-Future<void> _boot(WidgetTester tester) async {
+/// A mock Ollama that reports one model and echoes a canned reply, so the agent
+/// path is exercised without touching the network.
+AgentService _mockAgent({String reply = 'Here is a three-beat plan.'}) {
+  final client = MockClient((request) async {
+    if (request.url.path.endsWith('/api/tags')) {
+      return http.Response(
+        jsonEncode({
+          'models': [
+            {'name': 'qwen2.5:latest'},
+          ],
+        }),
+        200,
+      );
+    }
+    if (request.url.path.endsWith('/api/chat')) {
+      return http.Response(
+        jsonEncode({
+          'message': {'role': 'assistant', 'content': reply},
+        }),
+        200,
+      );
+    }
+    return http.Response('not found', 404);
+  });
+  return AgentService(ollama: OllamaClient(httpClient: client));
+}
+
+/// Boots the app at desktop size with a mock-backed agent.
+Future<void> _boot(WidgetTester tester, {AgentService? agent}) async {
   await tester.binding.setSurfaceSize(_desktop);
   addTearDown(() => tester.binding.setSurfaceSize(null));
-  await tester.pumpWidget(const OpenMontageStudioApp());
+  await tester.pumpWidget(
+    OpenMontageStudioApp(agentService: agent ?? _mockAgent()),
+  );
   await tester.pumpAndSettle();
 }
 
-/// Navigates from the home launcher into the studio editor.
 Future<void> _enterStudio(WidgetTester tester) async {
   await tester.tap(find.text('Create'));
   await tester.pumpAndSettle();
 }
 
 void main() {
-  testWidgets('boots to the home launcher with capabilities', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('boots to the home launcher with capabilities', (tester) async {
     await _boot(tester);
 
     expect(find.text('OpenMontage Studio'), findsOneWidget);
@@ -34,9 +66,7 @@ void main() {
     expect(find.text('Composition'), findsOneWidget);
   });
 
-  testWidgets('home opens the studio and shows the pipeline', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('home opens the studio and shows the pipeline', (tester) async {
     await _boot(tester);
     await _enterStudio(tester);
 
@@ -44,9 +74,7 @@ void main() {
     expect(find.textContaining('Composition 3/3'), findsOneWidget);
   });
 
-  testWidgets('selecting a scene updates the inspector', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('selecting a scene updates the inspector', (tester) async {
     await _boot(tester);
     await _enterStudio(tester);
 
@@ -60,23 +88,24 @@ void main() {
     expect(find.text('stat_card'), findsNothing);
   });
 
-  testWidgets('side panel shows agent chat and switches to asset gallery', (
-    WidgetTester tester,
+  testWidgets('agent chat shows the model and replies to a message', (
+    tester,
   ) async {
-    await _boot(tester);
+    await _boot(tester, agent: _mockAgent(reply: 'Hook, body, payoff.'));
     await _enterStudio(tester);
 
-    expect(find.text('Message the agent…'), findsOneWidget);
-    expect(find.text('scene_plan · 5 scenes · 23s'), findsOneWidget);
+    // The live status bar shows the connected local model.
+    expect(find.text('qwen2.5:latest'), findsOneWidget);
 
-    await tester.tap(find.byIcon(Icons.image_outlined));
+    await tester.enterText(find.byType(TextField).last, 'Plan it');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
 
-    expect(find.text('Megacity skyline'), findsOneWidget);
+    expect(find.text('Hook, body, payoff.'), findsOneWidget);
   });
 
   testWidgets('render button opens the progress dialog and completes', (
-    WidgetTester tester,
+    tester,
   ) async {
     await _boot(tester);
     await _enterStudio(tester);
@@ -93,9 +122,7 @@ void main() {
     expect(find.text('Render complete'), findsNothing);
   });
 
-  testWidgets('settings opens the providers screen', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('settings opens the providers screen', (tester) async {
     await _boot(tester);
 
     await tester.tap(find.text('Settings'));
