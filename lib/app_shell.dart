@@ -7,6 +7,7 @@ import 'auth/account_session.dart';
 import 'services/agent_service.dart';
 import 'services/render_client.dart';
 import 'services/tts_client.dart';
+import 'services/update_checker.dart';
 
 /// Top-level views the app switches between.
 enum AppView { home, studio, settings }
@@ -20,6 +21,7 @@ class AppShell extends StatefulWidget {
     this.agentService,
     this.ttsClient,
     this.renderClient,
+    this.updateChecker,
     this.session,
   });
 
@@ -27,6 +29,7 @@ class AppShell extends StatefulWidget {
   final AgentService? agentService;
   final TtsClient? ttsClient;
   final RenderClient? renderClient;
+  final UpdateChecker? updateChecker;
   final AccountSession? session;
 
   @override
@@ -58,6 +61,7 @@ class _AppShellState extends State<AppShell> {
         agent: _agent,
         onOpenProject: _openStudio,
         onOpenSettings: () => _go(AppView.settings),
+        updateChecker: widget.updateChecker,
       ),
       AppView.studio => StudioScreen(
         agent: _agent,

@@ -6,6 +6,7 @@ import 'services/auth_client.dart';
 import 'services/render_client.dart';
 import 'services/session_store.dart';
 import 'services/tts_client.dart';
+import 'services/update_checker.dart';
 import 'theme/app_theme.dart';
 
 void main() {
@@ -21,6 +22,7 @@ class OpenMontageStudioApp extends StatelessWidget {
     this.authClient,
     this.sessionStore,
     this.initialAccount,
+    this.updateChecker,
   });
 
   /// Injected in tests; default to live providers. [initialAccount] starts the
@@ -31,6 +33,7 @@ class OpenMontageStudioApp extends StatelessWidget {
   final AuthClient? authClient;
   final SessionStore? sessionStore;
   final Account? initialAccount;
+  final UpdateChecker? updateChecker;
 
   @override
   Widget build(BuildContext context) {
@@ -47,6 +50,7 @@ class OpenMontageStudioApp extends StatelessWidget {
           agentService: agentService,
           ttsClient: ttsClient,
           renderClient: renderClient,
+          updateChecker: updateChecker ?? UpdateChecker(),
           session: session,
         ),
       ),

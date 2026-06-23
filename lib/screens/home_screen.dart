@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/catalog.dart';
 import '../models/studio_models.dart';
 import '../services/agent_service.dart';
+import '../services/update_checker.dart';
 import '../theme/app_theme.dart';
 
 /// The launcher: a brief composer to start a video, a capability dashboard, and
@@ -15,11 +17,15 @@ class HomeScreen extends StatefulWidget {
     required this.agent,
     required this.onOpenProject,
     required this.onOpenSettings,
+    this.updateChecker,
   });
 
   final AgentService agent;
   final ValueChanged<List<Scene>?> onOpenProject;
   final VoidCallback onOpenSettings;
+
+  /// When provided, the home checks for a newer release and shows a banner.
+  final UpdateChecker? updateChecker;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -28,6 +34,22 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _brief = TextEditingController();
   bool _planning = false;
+  UpdateInfo? _update;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkForUpdate();
+  }
+
+  Future<void> _checkForUpdate() async {
+    final checker = widget.updateChecker;
+    if (checker == null) return;
+    final info = await checker.check();
+    if (mounted && info != null && info.available) {
+      setState(() => _update = info);
+    }
+  }
 
   @override
   void dispose() {
@@ -66,6 +88,10 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 36),
             children: [
               _Header(onOpenSettings: widget.onOpenSettings),
+              if (_update != null) ...[
+                const SizedBox(height: 16),
+                _UpdateBanner(info: _update!),
+              ],
               const SizedBox(height: 28),
               _NewProjectCard(
                 controller: _brief,
@@ -221,6 +247,56 @@ class _NewProjectCard extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UpdateBanner extends StatelessWidget {
+  const _UpdateBanner({required this.info});
+  final UpdateInfo info;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.accentCyan.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.accentCyan.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.system_update_alt,
+            size: 18,
+            color: AppColors.accentCyan,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Version ${info.latest} is available'
+              '${info.notes != null && info.notes!.isNotEmpty ? ' · ${info.notes}' : ''}',
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          FilledButton(
+            onPressed: info.url.isEmpty
+                ? null
+                : () => launchUrl(
+                    Uri.parse(info.url),
+                    mode: LaunchMode.externalApplication,
+                  ),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.accentCyan,
+              foregroundColor: AppColors.background,
+            ),
+            child: const Text('Download'),
           ),
         ],
       ),

@@ -14,6 +14,7 @@ import 'package:openmontage_studio/services/auth_client.dart';
 import 'package:openmontage_studio/services/ollama_client.dart';
 import 'package:openmontage_studio/services/render_client.dart';
 import 'package:openmontage_studio/services/tts_client.dart';
+import 'package:openmontage_studio/services/update_checker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const _testAccount = Account(
@@ -99,12 +100,29 @@ RenderClient _mockRender() {
   return RenderClient(httpClient: client);
 }
 
+/// A mock update checker that reports the given latest [version] (default the
+/// current one, i.e. no update), without hitting the network.
+UpdateChecker _mockUpdate({String version = '1.0.0'}) {
+  final client = MockClient(
+    (req) async => http.Response(
+      jsonEncode({
+        'version': version,
+        'url': 'https://x/app.dmg',
+        'notes': 'New',
+      }),
+      200,
+    ),
+  );
+  return UpdateChecker(httpClient: client, currentVersion: '1.0.0');
+}
+
 /// Boots the app at desktop size with mock-backed local providers.
 Future<void> _boot(
   WidgetTester tester, {
   AgentService? agent,
   TtsClient? tts,
   RenderClient? render,
+  UpdateChecker? update,
 }) async {
   await tester.binding.setSurfaceSize(_desktop);
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -113,6 +131,7 @@ Future<void> _boot(
       agentService: agent ?? _mockAgent(),
       ttsClient: tts ?? _mockTts(),
       renderClient: render ?? _mockRender(),
+      updateChecker: update ?? _mockUpdate(),
       initialAccount: _testAccount, // bypass the auth gate
     ),
   );
@@ -131,6 +150,14 @@ void main() {
     expect(find.text('OpenMontage Studio'), findsOneWidget);
     expect(find.text('Start a new video'), findsOneWidget);
     expect(find.text('Composition'), findsOneWidget);
+  });
+
+  testWidgets('home shows an update banner when a newer version exists', (
+    tester,
+  ) async {
+    await _boot(tester, update: _mockUpdate(version: '2.0.0'));
+    expect(find.textContaining('Version 2.0.0 is available'), findsOneWidget);
+    expect(find.text('Download'), findsOneWidget);
   });
 
   testWidgets('home opens the studio and shows the pipeline', (tester) async {

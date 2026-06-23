@@ -163,6 +163,37 @@ same `localhost`-endpoint shape, so adding more is uniform.
 3. **Richer render** — per-scene images/clips and motion instead of color cards.
 4. **Packaging** — bundle the render toolchain, download models on demand.
 
+## Distribution & updates (macOS)
+
+**Package a build:**
+
+```bash
+scripts/package_macos.sh        # -> dist/OpenMontageStudio-<version>.dmg
+```
+
+This produces a drag-to-install `.dmg`. It is **not** signed — for a release
+users can open without a Gatekeeper warning you need an Apple Developer ID:
+
+```bash
+codesign --deep --force --options runtime \
+  --sign "Developer ID Application: <NAME> (<TEAMID>)" <app>
+xcrun notarytool submit <dmg> --apple-id <id> --team-id <TEAMID> \
+  --password <app-specific-password> --wait
+xcrun stapler staple <dmg>
+```
+
+**Hosting:** the site (Cloudflare Pages) serves the installer at
+`get.opencli.ai/download/OpenMontageStudio.dmg` and a version manifest at
+`get.opencli.ai/version.json`.
+
+**In-app updates:** on launch the home screen fetches `version.json`
+(`UpdateChecker`) and shows a "Version X is available · Download" banner when a
+newer release exists. To ship an update: build + sign the new `.dmg`, upload it,
+and bump both `pubspec.yaml` `version:`/`lib/app_version.dart` and `version.json`.
+For true one-click auto-install (download + relaunch), the next step is
+[Sparkle](https://sparkle-project.org) via the `auto_updater` plugin with a
+signed appcast.
+
 ## License
 
 [MIT](LICENSE) © AI Dashboard.
