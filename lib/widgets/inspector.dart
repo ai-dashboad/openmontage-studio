@@ -135,6 +135,15 @@ class _InspectorState extends State<Inspector> {
                   widget.onSceneChanged(widget.scene.copyWith(subtitle: v));
                 }, maxLines: 2, fieldKey: const Key('inspectorSubtitle')),
                 _accentRow(),
+                if (widget.scene.isChart)
+                  _ChartDataEditor(
+                    sceneId: widget.scene.id,
+                    data: widget.scene.chartData,
+                    accent: widget.scene.accent,
+                    onChanged: (d) => widget.onSceneChanged(
+                      widget.scene.copyWith(chartData: d),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -604,6 +613,202 @@ class _InspectorState extends State<Inspector> {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Editable data points for a chart scene. Controllers reseed when the scene
+/// changes (id) or a row is added/removed, so typing keeps the cursor steady.
+class _ChartDataEditor extends StatefulWidget {
+  const _ChartDataEditor({
+    required this.sceneId,
+    required this.data,
+    required this.accent,
+    required this.onChanged,
+  });
+
+  final String sceneId;
+  final List<ChartDatum> data;
+  final Color accent;
+  final ValueChanged<List<ChartDatum>> onChanged;
+
+  @override
+  State<_ChartDataEditor> createState() => _ChartDataEditorState();
+}
+
+class _ChartDataEditorState extends State<_ChartDataEditor> {
+  late List<TextEditingController> _labels;
+  late List<TextEditingController> _values;
+
+  @override
+  void initState() {
+    super.initState();
+    _seed();
+  }
+
+  @override
+  void didUpdateWidget(_ChartDataEditor old) {
+    super.didUpdateWidget(old);
+    // Reseed on a scene switch or a row count change (not on every keystroke).
+    if (old.sceneId != widget.sceneId ||
+        old.data.length != widget.data.length) {
+      _disposeControllers();
+      _seed();
+    }
+  }
+
+  void _seed() {
+    _labels = [
+      for (final d in widget.data) TextEditingController(text: d.label),
+    ];
+    _values = [
+      for (final d in widget.data)
+        TextEditingController(text: _fmt(d.value)),
+    ];
+  }
+
+  String _fmt(double v) =>
+      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString();
+
+  void _disposeControllers() {
+    for (final c in _labels) {
+      c.dispose();
+    }
+    for (final c in _values) {
+      c.dispose();
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposeControllers();
+    super.dispose();
+  }
+
+  void _emit() {
+    widget.onChanged([
+      for (var i = 0; i < _labels.length; i++)
+        ChartDatum(
+          label: _labels[i].text,
+          value: double.tryParse(_values[i].text.trim()) ?? 0,
+        ),
+    ]);
+  }
+
+  void _add() {
+    final next = [
+      ...widget.data,
+      const ChartDatum(label: 'Item', value: 10),
+    ];
+    widget.onChanged(next);
+  }
+
+  void _removeAt(int i) {
+    final next = [...widget.data]..removeAt(i);
+    widget.onChanged(next);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'CHART DATA',
+                style: const TextStyle(
+                  color: AppColors.textFaint,
+                  fontSize: 10,
+                  letterSpacing: 0.8,
+                ),
+              ),
+              const Spacer(),
+              InkWell(
+                key: const Key('chartAddRow'),
+                borderRadius: BorderRadius.circular(6),
+                onTap: _add,
+                child: const Padding(
+                  padding: EdgeInsets.all(4),
+                  child: Icon(Icons.add, size: 16, color: AppColors.accentCyan),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          for (var i = 0; i < _labels.length; i++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    margin: const EdgeInsets.only(right: 8),
+                    decoration: BoxDecoration(
+                      color: widget.accent,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 3,
+                    child: _miniField(_labels[i], (_) => _emit()),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    flex: 2,
+                    child: _miniField(
+                      _values[i],
+                      (_) => _emit(),
+                      numeric: true,
+                    ),
+                  ),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(6),
+                    onTap: () => _removeAt(i),
+                    child: const Padding(
+                      padding: EdgeInsets.all(4),
+                      child: Icon(
+                        Icons.close,
+                        size: 14,
+                        color: AppColors.textFaint,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniField(
+    TextEditingController controller,
+    ValueChanged<String> onChanged, {
+    bool numeric = false,
+  }) {
+    return TextField(
+      controller: controller,
+      onChanged: onChanged,
+      keyboardType: numeric ? TextInputType.number : null,
+      style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
+      decoration: InputDecoration(
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        filled: true,
+        fillColor: AppColors.background,
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(6),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(6),
+          borderSide: const BorderSide(color: AppColors.accentCyan),
+        ),
       ),
     );
   }

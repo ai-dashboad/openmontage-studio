@@ -324,8 +324,12 @@ class RenderClient {
     } else if (stype == 'hero_title') {
       cut.addAll({'type': 'hero_title', 'text': headline, 'heroSubtitle': subtitle});
     } else if (stype == 'bar_chart' || stype == 'pie_chart') {
-      final data = _chartData(subtitle);
-      if (data != null) {
+      // Prefer the scene's real data; synthesize from the subtitle only if none.
+      final provided = sc['chartData'];
+      final data = (provided is List && provided.isNotEmpty)
+          ? provided
+          : _chartData(subtitle);
+      if (data != null && data.isNotEmpty) {
         cut.addAll({'type': stype, 'title': headline, 'chartData': data, 'showValues': true});
       } else {
         cut.addAll({'type': 'text_card', 'text': headline.isEmpty ? subtitle : headline});

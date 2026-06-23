@@ -38,6 +38,40 @@ void main() {
     expect(loaded.first.scenes.single.accent, const Color(0xFF22D3EE));
   });
 
+  test('chart data survives a save/reload roundtrip', () async {
+    SharedPreferences.setMockInitialValues({});
+    final store = ProjectStore(prefs: await SharedPreferences.getInstance());
+
+    await store.save(
+      StudioProject(
+        id: 'chart',
+        name: 'Charted',
+        scenes: const [
+          Scene(
+            id: 'c',
+            type: 'bar_chart',
+            title: 'Cities',
+            startSeconds: 0,
+            endSeconds: 4,
+            accent: Color(0xFFA78BFA),
+            headline: 'Megacities',
+            subtitle: 'millions',
+            chartData: [
+              ChartDatum(label: 'Tokyo', value: 37),
+              ChartDatum(label: 'Delhi', value: 32),
+            ],
+          ),
+        ],
+        stageIndex: 2,
+        updatedAtIso: '2026-06-24T00:00:00.000Z',
+      ),
+    );
+    final scene = (await store.load()).single.scenes.single;
+    expect(scene.isChart, isTrue);
+    expect(scene.chartData.map((d) => d.label), ['Tokyo', 'Delhi']);
+    expect(scene.chartData.first.value, 37);
+  });
+
   test('save by id updates in place rather than duplicating', () async {
     SharedPreferences.setMockInitialValues({});
     final store = ProjectStore(prefs: await SharedPreferences.getInstance());

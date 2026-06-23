@@ -230,6 +230,18 @@ void main() {
     expect(find.textContaining('Narration ready · Samantha'), findsOneWidget);
   });
 
+  testWidgets('a chart scene renders its data in the preview', (tester) async {
+    await _boot(tester);
+    await _enterStudio(tester);
+
+    await tester.tap(find.text('Megacities'));
+    await tester.pumpAndSettle();
+
+    // The mini chart in the preview reflects the scene's real data.
+    expect(find.text('Tokyo'), findsWidgets);
+    expect(find.text('37'), findsWidgets);
+  });
+
   testWidgets('adding and deleting scenes changes the plan length', (
     tester,
   ) async {

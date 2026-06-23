@@ -97,6 +97,8 @@ Each scene is an object with these fields:
   "seconds":  number, the scene duration (total across scenes ~20-30s)
   "headline": the main on-screen line
   "subtitle": a short supporting line
+  "data":     ONLY for bar_chart/pie_chart — an array of 3-5 objects
+              {"label": "Tokyo", "value": 37} with real illustrative numbers
 Start with a hero_title hook and end with a text_card close.''';
 
   /// Turns a one-line [brief] into a structured scene plan via the local model.
@@ -193,10 +195,25 @@ Start with a hero_title hook and end with a text_card close.''';
           accent: _accents[i % _accents.length],
           headline: (m['headline'] as String?) ?? '',
           subtitle: (m['subtitle'] as String?) ?? '',
+          chartData: _parseChartData(m['data'] ?? m['chartData']),
         ),
       );
       cursor += seconds;
     }
     return scenes;
+  }
+
+  /// Parses an optional chart `data` array of `{label, value}` objects.
+  List<ChartDatum> _parseChartData(dynamic raw) {
+    if (raw is! List) return const [];
+    final out = <ChartDatum>[];
+    for (final item in raw) {
+      if (item is Map) {
+        out.add(
+          ChartDatum.fromJson(Map<String, dynamic>.from(item)),
+        );
+      }
+    }
+    return out;
   }
 }

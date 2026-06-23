@@ -564,6 +564,10 @@ class _StudioScreenState extends State<StudioScreen>
               .toRadixString(16)
               .padLeft(8, '0')
               .substring(2),
+          if (s.chartData.isNotEmpty)
+            'chartData': [
+              for (final d in s.chartData) {'label': d.label, 'value': d.value},
+            ],
         },
     ];
   }

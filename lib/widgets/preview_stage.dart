@@ -133,6 +133,16 @@ class _ScenePreview extends StatelessWidget {
                         height: 1.1,
                       ),
                     ),
+                  if (scene.isChart && scene.chartData.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      height: 120,
+                      child: _MiniBars(
+                        data: scene.chartData,
+                        accent: scene.accent,
+                      ),
+                    ),
+                  ],
                   if (scene.subtitle.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     Text(
@@ -259,6 +269,78 @@ class _Transport extends StatelessWidget {
           color: AppColors.textMuted,
           size: 18,
         ),
+      ],
+    );
+  }
+}
+
+/// A compact bar chart for the preview — a faithful-enough stand-in for the
+/// rendered chart so editing the data shows up live.
+class _MiniBars extends StatelessWidget {
+  const _MiniBars({required this.data, required this.accent});
+  final List<ChartDatum> data;
+  final Color accent;
+
+  static const _palette = [
+    AppColors.accentPurple,
+    AppColors.accentCyan,
+    AppColors.accentAmber,
+    AppColors.accentGreen,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final maxValue = data
+        .map((d) => d.value)
+        .fold<double>(1, (a, b) => b > a ? b : a);
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        for (var i = 0; i < data.length; i++)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(
+                  data[i].value == data[i].value.roundToDouble()
+                      ? data[i].value.toStringAsFixed(0)
+                      : data[i].value.toString(),
+                  style: AppTheme.mono.copyWith(
+                    color: AppColors.textMuted,
+                    fontSize: 10,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Container(
+                  width: 26,
+                  height: (data[i].value / maxValue * 70).clamp(3, 70),
+                  decoration: BoxDecoration(
+                    color: _palette[i % _palette.length],
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(3),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                SizedBox(
+                  width: 40,
+                  child: Text(
+                    data[i].label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: AppColors.textFaint,
+                      fontSize: 9.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
       ],
     );
   }
