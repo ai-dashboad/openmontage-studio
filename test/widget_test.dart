@@ -11,6 +11,7 @@ import 'package:http/testing.dart';
 import 'package:openmontage_studio/main.dart';
 import 'package:openmontage_studio/services/agent_service.dart';
 import 'package:openmontage_studio/services/ollama_client.dart';
+import 'package:openmontage_studio/services/render_client.dart';
 import 'package:openmontage_studio/services/tts_client.dart';
 
 // The shell targets a minimum desktop window of 1100x720.
@@ -68,11 +69,34 @@ TtsClient _mockTts() {
   return TtsClient(httpClient: client);
 }
 
+/// A mock render provider that reports a finished MP4 without touching ffmpeg.
+RenderClient _mockRender() {
+  final client = MockClient((request) async {
+    if (request.url.path.endsWith('/render')) {
+      return http.Response(
+        jsonEncode({
+          'path': '/tmp/openmontage-tts/render/render.mp4',
+          'scenes': 5,
+          'seconds': 23.0,
+          'bytes': 73853,
+        }),
+        200,
+      );
+    }
+    if (request.url.path.endsWith('/open')) {
+      return http.Response(jsonEncode({'ok': true}), 200);
+    }
+    return http.Response('not found', 404);
+  });
+  return RenderClient(httpClient: client);
+}
+
 /// Boots the app at desktop size with mock-backed local providers.
 Future<void> _boot(
   WidgetTester tester, {
   AgentService? agent,
   TtsClient? tts,
+  RenderClient? render,
 }) async {
   await tester.binding.setSurfaceSize(_desktop);
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -80,6 +104,7 @@ Future<void> _boot(
     OpenMontageStudioApp(
       agentService: agent ?? _mockAgent(),
       ttsClient: tts ?? _mockTts(),
+      renderClient: render ?? _mockRender(),
     ),
   );
   await tester.pumpAndSettle();
@@ -172,18 +197,15 @@ void main() {
     expect(find.textContaining('Samantha'), findsOneWidget);
   });
 
-  testWidgets('render button opens the progress dialog and completes', (
-    tester,
-  ) async {
+  testWidgets('render button renders an MP4 via the provider', (tester) async {
     await _boot(tester);
     await _enterStudio(tester);
 
     await tester.tap(find.text('Render'));
-    await tester.pump();
-    expect(find.text('Rendering'), findsOneWidget);
-
     await tester.pumpAndSettle();
+
     expect(find.text('Render complete'), findsOneWidget);
+    expect(find.textContaining('render.mp4'), findsOneWidget);
 
     await tester.tap(find.text('Done'));
     await tester.pumpAndSettle();

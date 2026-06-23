@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/studio_models.dart';
 import '../services/agent_service.dart';
+import '../services/render_client.dart';
 import '../services/tts_client.dart';
 import '../theme/app_theme.dart';
 import '../widgets/inspector.dart';
@@ -19,6 +20,7 @@ class StudioScreen extends StatefulWidget {
     super.key,
     required this.agent,
     required this.tts,
+    required this.render,
     this.scenes = MockProject.scenes,
     this.onHome,
     this.onOpenSettings,
@@ -26,6 +28,7 @@ class StudioScreen extends StatefulWidget {
 
   final AgentService agent;
   final TtsClient tts;
+  final RenderClient render;
 
   /// The scene plan driving the editor — defaults to the sample, or an
   /// agent-generated plan passed in from the home brief.
@@ -99,6 +102,23 @@ class _StudioScreenState extends State<StudioScreen> {
     _toast('scene_plan approved — advancing to assets');
   }
 
+  /// Serializes the scene plan for the render provider.
+  List<Map<String, dynamic>> _renderPayload() {
+    return [
+      for (final s in _scenes)
+        {
+          'headline': s.headline,
+          'subtitle': s.subtitle,
+          'seconds': s.durationSeconds,
+          'accent': s.accent
+              .toARGB32()
+              .toRadixString(16)
+              .padLeft(8, '0')
+              .substring(2),
+        },
+    ];
+  }
+
   bool _narrating = false;
 
   Future<void> _generateNarration() async {
@@ -121,7 +141,7 @@ class _StudioScreenState extends State<StudioScreen> {
       );
     } catch (_) {
       if (!mounted) return;
-      _toast('TTS provider offline — run: python3 backend/tts_server.py');
+      _toast('TTS provider offline — run: python3 backend/provider_server.py');
     } finally {
       if (mounted) setState(() => _narrating = false);
     }
@@ -151,7 +171,11 @@ class _StudioScreenState extends State<StudioScreen> {
             onToggleOnline: () => setState(() => _isOnline = !_isOnline),
             onHome: widget.onHome,
             onOpenSettings: widget.onOpenSettings,
-            onRender: () => showRenderDialog(context),
+            onRender: () => showRenderDialog(
+              context,
+              client: widget.render,
+              scenes: _renderPayload(),
+            ),
           ),
           Expanded(
             child: Row(

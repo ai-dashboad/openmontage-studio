@@ -122,22 +122,26 @@ home screen and pressing **Create** asks the local model for a JSON scene plan
 timeline, preview, and inspector. If the model is unreachable or the response
 isn't usable, the studio opens with the sample plan instead.
 
-## Local narration (live)
+## Local media providers (live)
 
-The studio inspector's **Generate narration** button produces real audio for the
-selected scene through a second localhost provider: `backend/tts_server.py`, a
-tiny stdlib-only service wrapping the macOS `say` engine — offline, no install,
-no API key.
+A second localhost service, `backend/provider_server.py` — stdlib-only, wrapping
+macOS `say` and ffmpeg — gives the app real narration and real video, offline,
+no install, no API key:
 
 ```bash
-python3 backend/tts_server.py     # listens on 127.0.0.1:8765
+python3 backend/provider_server.py     # listens on 127.0.0.1:8765
 ```
 
-With it running, **Generate narration** synthesizes the scene's headline +
-subtitle to an AIFF clip, plays it through the speakers, and reports the clip
-(voice, duration, size). If the provider is down, the studio says how to start
-it. `TtsClient` is the Dart side; both providers (LLM + TTS) follow the same
-`localhost`-endpoint shape, so adding more is uniform.
+- **Generate narration** (inspector) synthesizes the selected scene's headline +
+  subtitle to an audio clip via `say`, plays it, and reports voice/duration/size.
+- **Render** (top bar) composites the whole scene plan into a real **MP4** —
+  ffmpeg color cards with the scene text drawn on top, each with its `say`
+  narration, concatenated — then offers to play it. A 1280×720 H.264 + AAC file
+  on disk, produced entirely locally.
+
+If the provider is down, the studio says how to start it. `TtsClient` and
+`RenderClient` are the Dart sides; every provider (LLM, TTS, render) follows the
+same `localhost`-endpoint shape, so adding more is uniform.
 
 ## Roadmap
 
@@ -145,8 +149,9 @@ it. `TtsClient` is the Dart side; both providers (LLM + TTS) follow the same
    rest of the pipeline (edit decisions, asset prompts), with the approval gates
    feeding results back to the agent. (Started: brief → scene_plan.)
 2. **Engine bridge** — reach cloud and local generators uniformly over `localhost`
-   endpoints, so online/offline is just "which endpoint." (Started: Ollama.)
-3. **Live preview** — embed a real renderer instead of the placeholder.
+   endpoints, so online/offline is just "which endpoint." (Started: Ollama, TTS,
+   render.)
+3. **Richer render** — per-scene images/clips and motion instead of color cards.
 4. **Packaging** — bundle the render toolchain, download models on demand.
 
 ## License
