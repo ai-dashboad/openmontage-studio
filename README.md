@@ -122,6 +122,15 @@ home screen and pressing **Create** asks the local model for a JSON scene plan
 timeline, preview, and inspector. If the model is unreachable or the response
 isn't usable, the studio opens with the sample plan instead.
 
+### Agent knowledge (`assets/skills/`)
+
+The agent's behavior is driven by editable markdown skills, not hard-coded
+prompts: a production overview plus one director skill per pipeline stage
+(`idea → … → compose`). `AgentService` loads them at runtime (falling back to
+embedded text if assets are unavailable), so you change *how* the agent works by
+editing the skills — the Dart code is just plumbing. All skill content is
+original to this project.
+
 ## Local media providers (live)
 
 A second localhost service, `backend/provider_server.py` — stdlib-only, wrapping
