@@ -8,6 +8,10 @@ class Account {
     required this.email,
     this.name,
     this.createdAt,
+    this.marketingConsent = false,
+    this.marketingSource,
+    this.useCase,
+    this.country,
   });
 
   final String id;
@@ -15,11 +19,21 @@ class Account {
   final String? name;
   final String? createdAt;
 
+  /// Whether the user opted in to marketing communications.
+  final bool marketingConsent;
+  final String? marketingSource;
+  final String? useCase;
+  final String? country;
+
   factory Account.fromJson(Map<String, dynamic> json) => Account(
     id: json['id'] as String,
     email: json['email'] as String,
     name: json['name'] as String?,
     createdAt: json['created_at'] as String?,
+    marketingConsent: json['marketing_consent'] == true,
+    marketingSource: json['marketing_source'] as String?,
+    useCase: json['use_case'] as String?,
+    country: json['country'] as String?,
   );
 }
 
@@ -46,16 +60,56 @@ class AuthClient {
     required String email,
     required String password,
     String? name,
+    bool marketingConsent = false,
+    String? marketingSource,
+    String? useCase,
+    String? locale,
   }) {
     return _session('/auth/register', {
       'email': email,
       'password': password,
       if (name != null && name.isNotEmpty) 'name': name,
+      'marketing_consent': marketingConsent,
+      if (marketingSource != null && marketingSource.isNotEmpty)
+        'marketing_source': marketingSource,
+      if (useCase != null && useCase.isNotEmpty) 'use_case': useCase,
+      if (locale != null && locale.isNotEmpty) 'locale': locale,
     });
   }
 
   Future<Session> login({required String email, required String password}) {
     return _session('/auth/login', {'email': email, 'password': password});
+  }
+
+  /// Updates the account's name and marketing fields. Pass
+  /// [marketingConsent] = false to opt out. Returns the updated account.
+  Future<Account> updateProfile(
+    String token, {
+    String? name,
+    bool? marketingConsent,
+    String? marketingSource,
+    String? useCase,
+  }) async {
+    final res = await _http
+        .patch(
+          Uri.parse('$baseUrl/auth/profile'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({
+            'name': ?name,
+            'marketing_consent': ?marketingConsent,
+            'marketing_source': ?marketingSource,
+            'use_case': ?useCase,
+          }),
+        )
+        .timeout(const Duration(seconds: 15));
+    final json = jsonDecode(res.body) as Map<String, dynamic>;
+    if (res.statusCode != 200) {
+      throw AuthException((json['error'] as String?) ?? 'update failed');
+    }
+    return Account.fromJson(json['user'] as Map<String, dynamic>);
   }
 
   /// Resolves the account for a session token, or null if it's invalid.

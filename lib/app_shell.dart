@@ -4,6 +4,7 @@ import 'screens/home_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/studio_screen.dart';
 import 'services/agent_service.dart';
+import 'services/auth_client.dart';
 import 'services/render_client.dart';
 import 'services/tts_client.dart';
 
@@ -19,12 +20,18 @@ class AppShell extends StatefulWidget {
     this.agentService,
     this.ttsClient,
     this.renderClient,
+    this.account,
+    this.onLogout,
+    this.onSetConsent,
   });
 
   /// Injected in tests; default to live local providers.
   final AgentService? agentService;
   final TtsClient? ttsClient;
   final RenderClient? renderClient;
+  final Account? account;
+  final VoidCallback? onLogout;
+  final Future<void> Function(bool)? onSetConsent;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -64,7 +71,12 @@ class _AppShellState extends State<AppShell> {
         onHome: () => _go(AppView.home),
         onOpenSettings: () => _go(AppView.settings),
       ),
-      AppView.settings => SettingsScreen(onBack: () => _go(AppView.home)),
+      AppView.settings => SettingsScreen(
+        onBack: () => _go(AppView.home),
+        account: widget.account,
+        onLogout: widget.onLogout,
+        onSetConsent: widget.onSetConsent,
+      ),
     };
   }
 }

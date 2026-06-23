@@ -38,6 +38,9 @@ dependencies:
   # HTTP client for talking to the local agent (Ollama) over localhost.
   http: ^1.2.0
 
+  # Persist the session token between launches.
+  shared_preferences: ^2.3.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -10,9 +10,13 @@ import 'package:http/testing.dart';
 
 import 'package:openmontage_studio/main.dart';
 import 'package:openmontage_studio/services/agent_service.dart';
+import 'package:openmontage_studio/services/auth_client.dart';
 import 'package:openmontage_studio/services/ollama_client.dart';
 import 'package:openmontage_studio/services/render_client.dart';
 import 'package:openmontage_studio/services/tts_client.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+const _testAccount = Account(id: 'tester', email: 'tester@example.com');
 
 // The shell targets a minimum desktop window of 1100x720.
 const _desktop = Size(1280, 832);
@@ -105,6 +109,7 @@ Future<void> _boot(
       agentService: agent ?? _mockAgent(),
       ttsClient: tts ?? _mockTts(),
       renderClient: render ?? _mockRender(),
+      initialAccount: _testAccount, // bypass the auth gate
     ),
   );
   await tester.pumpAndSettle();
@@ -240,7 +245,86 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Providers'), findsOneWidget);
+    // The account card sits above the providers; scroll the Agent section in.
+    await tester.scrollUntilVisible(
+      find.text('Claude'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Claude'), findsOneWidget);
     expect(find.text('Ollama'), findsOneWidget);
+  });
+
+  testWidgets('unauthenticated shows sign-in; login enters the app', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    await tester.binding.setSurfaceSize(_desktop);
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final auth = AuthClient(
+      httpClient: MockClient((req) async {
+        if (req.url.path == '/auth/login') {
+          return http.Response(
+            jsonEncode({
+              'token': 'tok',
+              'user': {'id': 'u', 'email': 'x@y.com'},
+            }),
+            200,
+          );
+        }
+        return http.Response('no', 404);
+      }),
+    );
+
+    await tester.pumpWidget(
+      OpenMontageStudioApp(
+        authClient: auth,
+        agentService: _mockAgent(),
+        ttsClient: _mockTts(),
+        renderClient: _mockRender(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // No session -> the sign-in screen, not the app.
+    expect(find.text('Welcome back'), findsOneWidget);
+    expect(find.text('Start a new video'), findsNothing);
+
+    await tester.enterText(find.byType(TextField).at(0), 'x@y.com');
+    await tester.enterText(find.byType(TextField).at(1), 'supersecret1');
+    await tester.tap(find.text('Sign in'));
+    await tester.pumpAndSettle();
+
+    // Authenticated -> the home launcher.
+    expect(find.text('Start a new video'), findsOneWidget);
+  });
+
+  testWidgets('register mode shows the marketing consent opt-in', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    await tester.binding.setSurfaceSize(_desktop);
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(
+      OpenMontageStudioApp(
+        authClient: AuthClient(
+          httpClient: MockClient((req) async => http.Response('{}', 404)),
+        ),
+        agentService: _mockAgent(),
+        ttsClient: _mockTts(),
+        renderClient: _mockRender(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('New here? Create an account'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Create your account'), findsOneWidget);
+    // The consent is opt-in (a checkbox the user must tick) and explained.
+    expect(find.textContaining('Send me product updates'), findsOneWidget);
+    expect(find.byType(Checkbox), findsOneWidget);
   });
 }

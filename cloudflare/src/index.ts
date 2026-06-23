@@ -1,17 +1,22 @@
 /**
  * OpenMontage Studio — auth & accounts Worker.
  *
- * A small Cloudflare Worker that handles user registration, login, and session
- * lookup, backed by D1 (users) and KV (sessions). Passwords are hashed with
- * PBKDF2 via the Web Crypto API (no native deps). The deploy API token is never
- * seen here — it only authorizes `wrangler deploy`.
+ * Registration, login, session lookup, and profile/marketing-consent updates,
+ * backed by D1 (users) and KV (sessions). Passwords are hashed with PBKDF2 via
+ * the Web Crypto API (no native deps). The deploy API token is never seen here.
+ *
+ * Marketing data is collected only with explicit opt-in consent and can be
+ * withdrawn via PATCH /auth/profile (set marketing_consent=false). Country is
+ * read from Cloudflare's request geo (no extra collection from the user).
  *
  * Routes:
- *   POST /auth/register  {email, password, name?}  -> {token, user}
- *   POST /auth/login     {email, password}         -> {token, user}
- *   GET  /auth/me        Authorization: Bearer ...  -> {user}
- *   POST /auth/logout    Authorization: Bearer ...  -> {ok}
- *   GET  /health                                    -> {ok}
+ *   POST  /auth/register {email,password,name?,marketing_consent?,
+ *                         marketing_source?,use_case?,locale?}  -> {token,user}
+ *   POST  /auth/login    {email,password}                       -> {token,user}
+ *   GET   /auth/me        Authorization: Bearer ...              -> {user}
+ *   PATCH /auth/profile   Authorization: Bearer ...             -> {user}
+ *   POST  /auth/logout    Authorization: Bearer ...             -> {ok}
+ *   GET   /health                                                -> {ok}
  */
 
 export interface Env {
@@ -26,6 +31,12 @@ interface UserRow {
   password_hash: string;
   created_at: string;
   last_login_at: string | null;
+  marketing_consent: number;
+  consent_at: string | null;
+  marketing_source: string | null;
+  use_case: string | null;
+  country: string | null;
+  locale: string | null;
 }
 
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
@@ -33,7 +44,7 @@ const PBKDF2_ITERATIONS = 100_000;
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+  'Access-Control-Allow-Methods': 'GET,POST,PATCH,OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
@@ -116,16 +127,35 @@ function bearer(request: Request): string | null {
   return header.startsWith('Bearer ') ? header.slice(7) : null;
 }
 
+async function userIdFromSession(request: Request, env: Env): Promise<string | null> {
+  const token = bearer(request);
+  if (!token) return null;
+  return env.SESSIONS.get(`sess:${token}`);
+}
+
 function publicUser(row: UserRow) {
   return {
     id: row.id,
     email: row.email,
     name: row.name,
     created_at: row.created_at,
+    marketing_consent: row.marketing_consent === 1,
+    marketing_source: row.marketing_source,
+    use_case: row.use_case,
+    country: row.country,
   };
 }
 
+function geoCountry(request: Request): string | null {
+  const cf = (request as unknown as { cf?: { country?: string } }).cf;
+  return cf?.country ?? null;
+}
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+async function loadUser(env: Env, id: string): Promise<UserRow | null> {
+  return env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(id).first<UserRow>();
+}
 
 // ---- handlers ----
 
@@ -145,21 +175,40 @@ async function register(request: Request, env: Env): Promise<Response> {
     .first();
   if (existing) return json({ error: 'email already registered' }, 409);
 
-  const id = crypto.randomUUID();
+  // Marketing data — collected only on explicit opt-in.
+  const consent = body.marketing_consent === true;
   const now = new Date().toISOString();
+  const source = body.marketing_source ? String(body.marketing_source).slice(0, 80) : null;
+  const useCase = body.use_case ? String(body.use_case).slice(0, 200) : null;
+  const locale = body.locale ? String(body.locale).slice(0, 20) : null;
+
+  const id = crypto.randomUUID();
   const passwordHash = await hashPassword(password);
 
   await env.DB.prepare(
-    'INSERT INTO users (id, email, name, password_hash, created_at) VALUES (?, ?, ?, ?, ?)',
+    `INSERT INTO users
+       (id, email, name, password_hash, created_at,
+        marketing_consent, consent_at, marketing_source, use_case, country, locale)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
-    .bind(id, email, name, passwordHash, now)
+    .bind(
+      id,
+      email,
+      name,
+      passwordHash,
+      now,
+      consent ? 1 : 0,
+      consent ? now : null,
+      source,
+      useCase,
+      geoCountry(request),
+      locale,
+    )
     .run();
 
   const token = await createSession(env, id);
-  return json({
-    token,
-    user: { id, email, name, created_at: now },
-  });
+  const row = await loadUser(env, id);
+  return json({ token, user: publicUser(row!) });
 }
 
 async function login(request: Request, env: Env): Promise<Response> {
@@ -170,7 +219,6 @@ async function login(request: Request, env: Env): Promise<Response> {
   const row = await env.DB.prepare('SELECT * FROM users WHERE email = ?')
     .bind(email)
     .first<UserRow>();
-  // Always run a verify to keep timing uniform whether or not the user exists.
   const ok = row
     ? await verifyPassword(password, row.password_hash)
     : await verifyPassword(password, `pbkdf2$${PBKDF2_ITERATIONS}$00$00`);
@@ -185,15 +233,47 @@ async function login(request: Request, env: Env): Promise<Response> {
 }
 
 async function me(request: Request, env: Env): Promise<Response> {
-  const token = bearer(request);
-  if (!token) return json({ error: 'missing token' }, 401);
-  const userId = await env.SESSIONS.get(`sess:${token}`);
+  const userId = await userIdFromSession(request, env);
   if (!userId) return json({ error: 'invalid session' }, 401);
-  const row = await env.DB.prepare('SELECT * FROM users WHERE id = ?')
-    .bind(userId)
-    .first<UserRow>();
+  const row = await loadUser(env, userId);
   if (!row) return json({ error: 'user not found' }, 404);
   return json({ user: publicUser(row) });
+}
+
+// Update name and marketing fields. Setting marketing_consent=false is the
+// opt-out path; it clears consent_at.
+async function updateProfile(request: Request, env: Env): Promise<Response> {
+  const userId = await userIdFromSession(request, env);
+  if (!userId) return json({ error: 'invalid session' }, 401);
+  const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+
+  const sets: string[] = [];
+  const values: unknown[] = [];
+  if (typeof body.name === 'string') {
+    sets.push('name = ?');
+    values.push(body.name.trim());
+  }
+  if (typeof body.marketing_source === 'string') {
+    sets.push('marketing_source = ?');
+    values.push(body.marketing_source.slice(0, 80));
+  }
+  if (typeof body.use_case === 'string') {
+    sets.push('use_case = ?');
+    values.push(body.use_case.slice(0, 200));
+  }
+  if (typeof body.marketing_consent === 'boolean') {
+    sets.push('marketing_consent = ?', 'consent_at = ?');
+    values.push(body.marketing_consent ? 1 : 0);
+    values.push(body.marketing_consent ? new Date().toISOString() : null);
+  }
+  if (sets.length === 0) return json({ error: 'nothing to update' }, 400);
+
+  values.push(userId);
+  await env.DB.prepare(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`)
+    .bind(...values)
+    .run();
+  const row = await loadUser(env, userId);
+  return json({ user: publicUser(row!) });
 }
 
 async function logout(request: Request, env: Env): Promise<Response> {
@@ -208,20 +288,24 @@ export default {
       return new Response(null, { headers: CORS });
     }
     const { pathname } = new URL(request.url);
+    const { method } = request;
     try {
-      if (request.method === 'GET' && pathname === '/health') {
+      if (method === 'GET' && pathname === '/health') {
         return json({ ok: true, service: 'openmontage-auth' });
       }
-      if (request.method === 'POST' && pathname === '/auth/register') {
+      if (method === 'POST' && pathname === '/auth/register') {
         return await register(request, env);
       }
-      if (request.method === 'POST' && pathname === '/auth/login') {
+      if (method === 'POST' && pathname === '/auth/login') {
         return await login(request, env);
       }
-      if (request.method === 'GET' && pathname === '/auth/me') {
+      if (method === 'GET' && pathname === '/auth/me') {
         return await me(request, env);
       }
-      if (request.method === 'POST' && pathname === '/auth/logout') {
+      if (method === 'PATCH' && pathname === '/auth/profile') {
+        return await updateProfile(request, env);
+      }
+      if (method === 'POST' && pathname === '/auth/logout') {
         return await logout(request, env);
       }
       return json({ error: 'not found' }, 404);

@@ -1,13 +1,24 @@
 import 'package:flutter/material.dart';
 import '../models/catalog.dart';
+import '../services/auth_client.dart';
 import '../theme/app_theme.dart';
 
 /// Providers settings: cloud APIs and local engines, grouped by capability. The
 /// cloud/local split is what makes online vs offline "just which endpoint."
+/// Also hosts the account section (sign out + marketing opt-out).
 class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key, required this.onBack});
+  const SettingsScreen({
+    super.key,
+    required this.onBack,
+    this.account,
+    this.onLogout,
+    this.onSetConsent,
+  });
 
   final VoidCallback onBack;
+  final Account? account;
+  final VoidCallback? onLogout;
+  final Future<void> Function(bool)? onSetConsent;
 
   @override
   Widget build(BuildContext context) {
@@ -26,6 +37,14 @@ class SettingsScreen extends StatelessWidget {
             children: [
               _Header(onBack: onBack),
               const SizedBox(height: 24),
+              if (account != null) ...[
+                _AccountCard(
+                  account: account!,
+                  onLogout: onLogout,
+                  onSetConsent: onSetConsent,
+                ),
+                const SizedBox(height: 20),
+              ],
               for (final entry in byCapability.entries) ...[
                 _CapabilitySection(
                   capability: entry.key,
@@ -36,6 +55,121 @@ class SettingsScreen extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Account card: identity, sign out, and a marketing-email toggle that writes
+/// the consent change back to the server (the opt-out path).
+class _AccountCard extends StatefulWidget {
+  const _AccountCard({required this.account, this.onLogout, this.onSetConsent});
+  final Account account;
+  final VoidCallback? onLogout;
+  final Future<void> Function(bool)? onSetConsent;
+
+  @override
+  State<_AccountCard> createState() => _AccountCardState();
+}
+
+class _AccountCardState extends State<_AccountCard> {
+  late bool _consent = widget.account.marketingConsent;
+  bool _saving = false;
+
+  Future<void> _setConsent(bool value) async {
+    final update = widget.onSetConsent;
+    if (update == null || _saving) {
+      setState(() => _consent = value);
+      return;
+    }
+    setState(() {
+      _consent = value;
+      _saving = true;
+    });
+    try {
+      await update(value); // persisted server-side by the auth gate
+    } catch (_) {
+      if (mounted) setState(() => _consent = !value); // revert on failure
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final a = widget.account;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.account_circle_outlined,
+                color: AppColors.accentCyan,
+                size: 26,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      a.name?.isNotEmpty == true ? a.name! : a.email,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      a.country != null ? '${a.email} · ${a.country}' : a.email,
+                      style: const TextStyle(
+                        color: AppColors.textFaint,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: widget.onLogout,
+                icon: const Icon(Icons.logout, size: 15),
+                label: const Text('Sign out'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.textMuted,
+                  side: const BorderSide(color: AppColors.border),
+                ),
+              ),
+            ],
+          ),
+          const Divider(height: 24, color: AppColors.border),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Product updates & marketing emails',
+                  style: TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 13,
+                    fontWeight: _saving ? FontWeight.w400 : FontWeight.w400,
+                  ),
+                ),
+              ),
+              Switch(
+                value: _consent,
+                onChanged: _saving ? null : _setConsent,
+                activeThumbColor: AppColors.accentCyan,
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
