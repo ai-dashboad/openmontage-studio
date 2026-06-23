@@ -26,6 +26,9 @@ class Inspector extends StatefulWidget {
     this.voice = 'Samantha',
     this.voices = const [],
     this.onVoiceChanged,
+    this.runtime = 'ffmpeg',
+    this.runtimes = const ['ffmpeg'],
+    this.onRuntimeChanged,
     this.onRevise,
     this.revising = false,
     this.onUndo,
@@ -51,6 +54,9 @@ class Inspector extends StatefulWidget {
   final String voice;
   final List<String> voices;
   final ValueChanged<String>? onVoiceChanged;
+  final String runtime;
+  final List<String> runtimes;
+  final ValueChanged<String>? onRuntimeChanged;
   final VoidCallback? onRevise;
   final bool revising;
   final VoidCallback? onUndo;
@@ -386,6 +392,63 @@ class _InspectorState extends State<Inspector> {
     );
   }
 
+  /// Render engine: Fast (ffmpeg cards) vs Cinematic (Remotion motion graphics).
+  Widget _runtimePicker() {
+    Widget seg(String value, String label, IconData icon) {
+      final selected = widget.runtime == value;
+      return Expanded(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(6),
+          onTap: selected ? null : () => widget.onRuntimeChanged?.call(value),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 7),
+            decoration: BoxDecoration(
+              color: selected
+                  ? AppColors.accentCyan.withValues(alpha: 0.16)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: 14,
+                  color: selected ? AppColors.accentCyan : AppColors.textMuted,
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: selected
+                        ? AppColors.accentCyan
+                        : AppColors.textMuted,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          seg('ffmpeg', 'Fast', Icons.bolt),
+          seg('remotion', 'Cinematic', Icons.auto_awesome),
+        ],
+      ),
+    );
+  }
+
   /// Narration voice picker (the value applies to Generate narration + Render).
   Widget _voicePicker() {
     final value = widget.voices.contains(widget.voice)
@@ -441,6 +504,10 @@ class _InspectorState extends State<Inspector> {
       ),
       child: Column(
         children: [
+          if (widget.runtimes.length > 1) ...[
+            _runtimePicker(),
+            const SizedBox(height: 8),
+          ],
           if (widget.voices.isNotEmpty) ...[
             _voicePicker(),
             const SizedBox(height: 8),

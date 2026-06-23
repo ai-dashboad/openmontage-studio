@@ -35,6 +35,7 @@ class StudioScreen extends StatefulWidget {
     this.projectName = 'Untitled video',
     this.initialStage = 2,
     this.voice = 'Samantha',
+    this.runtime = 'ffmpeg',
     this.brief,
     this.scenes = MockProject.scenes,
     this.onHome,
@@ -52,6 +53,7 @@ class StudioScreen extends StatefulWidget {
   final String projectName;
   final int initialStage;
   final String voice;
+  final String runtime;
 
   /// The brief the user typed on the home screen, if any — seeds the agent
   /// conversation so the studio continues the same thread.
@@ -91,6 +93,8 @@ class _StudioScreenState extends State<StudioScreen>
   late String _projectName;
   late String _voice;
   List<String> _voices = const [];
+  late String _runtime;
+  List<String> _runtimes = const ['ffmpeg'];
 
   // The most recent render for this project, persisted with it.
   String? _renderPath;
@@ -120,6 +124,7 @@ class _StudioScreenState extends State<StudioScreen>
     _stage = widget.initialStage;
     _projectName = widget.projectName;
     _voice = widget.voice;
+    _runtime = widget.runtime;
     _selectedScene = _scenes.length > 1 ? 1 : 0;
     _playhead = _scenes[_selectedScene].startSeconds;
     _ticker = createTicker(_onTick);
@@ -129,6 +134,15 @@ class _StudioScreenState extends State<StudioScreen>
         setState(() {
           _voices = v;
           if (!v.contains(_voice)) _voice = v.first;
+        });
+      }
+    });
+    // Discover available render runtimes (ffmpeg / remotion).
+    widget.render.runtimes().then((r) {
+      if (mounted && r.isNotEmpty) {
+        setState(() {
+          _runtimes = r;
+          if (!r.contains(_runtime)) _runtime = r.first;
         });
       }
     });
@@ -203,6 +217,7 @@ class _StudioScreenState extends State<StudioScreen>
         stageIndex: _stage,
         updatedAtIso: DateTime.now().toIso8601String(),
         voice: _voice,
+        runtime: _runtime,
         renderPath: _renderPath,
         renderSeconds: _renderSeconds,
         renderBytes: _renderBytes,
@@ -487,6 +502,7 @@ class _StudioScreenState extends State<StudioScreen>
       scenes: _renderPayload(),
       projectName: _projectName,
       voice: _voice,
+      runtime: _runtime,
       onComplete: (result) {
         _renderPath = result.path;
         _renderSeconds = result.seconds;
@@ -655,6 +671,12 @@ class _StudioScreenState extends State<StudioScreen>
                   voices: _voices,
                   onVoiceChanged: (v) {
                     setState(() => _voice = v);
+                    _save();
+                  },
+                  runtime: _runtime,
+                  runtimes: _runtimes,
+                  onRuntimeChanged: (r) {
+                    setState(() => _runtime = r);
                     _save();
                   },
                   onRevise: _revise,

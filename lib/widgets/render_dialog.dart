@@ -18,6 +18,7 @@ Future<void> showRenderDialog(
   ValueChanged<RenderResult>? onComplete,
   String projectName = 'video',
   String? voice,
+  String runtime = 'ffmpeg',
 }) {
   return showDialog(
     context: context,
@@ -30,6 +31,7 @@ Future<void> showRenderDialog(
       onComplete: onComplete,
       projectName: projectName,
       voice: voice,
+      runtime: runtime,
     ),
   );
 }
@@ -44,6 +46,7 @@ class _RenderDialog extends StatefulWidget {
     this.provider,
     this.onComplete,
     this.voice,
+    this.runtime = 'ffmpeg',
   });
   final RenderClient client;
   final List<Map<String, dynamic>> scenes;
@@ -51,6 +54,7 @@ class _RenderDialog extends StatefulWidget {
   final ProviderManager? provider;
   final ValueChanged<RenderResult>? onComplete;
   final String? voice;
+  final String runtime;
 
   @override
   State<_RenderDialog> createState() => _RenderDialogState();
@@ -73,6 +77,7 @@ class _RenderDialogState extends State<_RenderDialog> {
       final result = await widget.client.render(
         widget.scenes,
         voice: widget.voice,
+        runtime: widget.runtime,
       );
       if (!mounted) return;
       setState(() {
@@ -195,7 +200,7 @@ class _RenderDialogState extends State<_RenderDialog> {
         ),
         const SizedBox(width: 8),
         Text(
-          'ffmpeg · 1080p',
+          '${widget.runtime} · 1080p',
           overflow: TextOverflow.ellipsis,
           style: AppTheme.mono.copyWith(
             color: AppColors.textFaint,
@@ -220,7 +225,11 @@ class _RenderDialogState extends State<_RenderDialog> {
           ),
           const SizedBox(height: 10),
           Text(
-            'Compositing ${widget.scenes.length} scenes with ffmpeg + narration…',
+            widget.runtime == 'remotion'
+                ? 'Rendering ${widget.scenes.length} cinematic scenes '
+                      '(motion graphics + narration)…'
+                : 'Compositing ${widget.scenes.length} scenes with ffmpeg '
+                      '+ narration…',
             style: AppTheme.mono.copyWith(
               color: AppColors.textMuted,
               fontSize: 12,

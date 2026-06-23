@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import subprocess
 import tempfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -312,6 +313,159 @@ def _assemble(
         return final, sum(durations)
 
 
+# ---------------------------------------------------------------------------
+# Remotion runtime — the cinematic renderer (React motion graphics), the same
+# engine the OpenMontage project uses. Maps the scene plan to the Explainer
+# composition's props and renders via `npx remotion render`.
+# ---------------------------------------------------------------------------
+
+
+def _composer_dir() -> Path | None:
+    """Locate the vendored remotion-composer with installed deps."""
+    candidates = [
+        Path(__file__).resolve().parent.parent / "remotion-composer",
+        Path.cwd() / "remotion-composer",
+    ]
+    for c in candidates:
+        if (c / "node_modules").exists() and (c / "src" / "index.tsx").exists():
+            return c
+    return None
+
+
+def _remotion_available() -> bool:
+    return bool(shutil.which("npx")) and _composer_dir() is not None
+
+
+def _chart_data(subtitle: str) -> list[dict] | None:
+    """Synthesizes illustrative chart data from a subtitle's label list (e.g.
+    "Tokyo · Delhi · Shanghai") so chart scenes animate even without numbers."""
+    parts = re.split(r"[·,|/]|\s-\s", subtitle)
+    labels = [p.strip() for p in parts if p.strip()]
+    if len(labels) < 2:
+        return None
+    labels = labels[:6]
+    n = len(labels)
+    return [
+        {"label": lab, "value": round(100 * (n - idx) / n)}
+        for idx, lab in enumerate(labels)
+    ]
+
+
+def _hex(value: str | None) -> str:
+    raw = _normalize_hex(value).replace("0x", "")
+    return f"#{raw}"
+
+
+def _scene_to_cut(i: int, sc: dict, cursor: float, dur: float) -> dict:
+    headline = (sc.get("headline") or sc.get("title") or "").strip()
+    subtitle = (sc.get("subtitle") or "").strip()
+    stype = (sc.get("type") or "text_card").strip()
+    cut: dict = {
+        "id": f"cut_{i}",
+        "source": "",
+        "in_seconds": round(cursor, 3),
+        "out_seconds": round(cursor + dur, 3),
+        "accentColor": _hex(sc.get("accent")),
+    }
+    if stype == "stat_card":
+        cut.update(type="stat_card", stat=headline or "—", subtitle=subtitle)
+    elif stype == "hero_title":
+        cut.update(type="hero_title", text=headline, heroSubtitle=subtitle)
+    elif stype in ("bar_chart", "pie_chart"):
+        data = _chart_data(subtitle)
+        if data:
+            cut.update(
+                type=stype, title=headline, chartData=data, showValues=True
+            )
+        else:
+            cut.update(type="text_card", text=headline or subtitle)
+    else:
+        cut.update(type="text_card", text=headline or subtitle)
+    return cut
+
+
+def _render_remotion(scenes: list[dict], voice: str) -> dict:
+    composer = _composer_dir()
+    if composer is None:
+        raise RuntimeError("Remotion composer not available")
+    work = OUT_DIR / "render"
+    work.mkdir(exist_ok=True)
+
+    # Pass 1: synthesize per-scene narration and derive durations.
+    raws: list[Path | None] = []
+    durations: list[float] = []
+    for i, sc in enumerate(scenes):
+        headline = (sc.get("headline") or sc.get("title") or "").strip()
+        subtitle = (sc.get("subtitle") or "").strip()
+        seconds = float(sc.get("seconds") or 4)
+        narration = ". ".join(p for p in [headline, subtitle] if p)
+        adur = 0.0
+        raw: Path | None = None
+        if narration:
+            raw = work / f"rm_narr_{i}.aiff"
+            _say(narration, voice, raw)
+            adur = _duration_seconds(raw)
+        raws.append(raw)
+        durations.append(max(seconds, adur + 0.3, 1.5))
+
+    # Build cuts and a single narration track aligned to scene boundaries.
+    cuts = []
+    segs: list[Path] = []
+    cursor = 0.0
+    for i, sc in enumerate(scenes):
+        cuts.append(_scene_to_cut(i, sc, cursor, durations[i]))
+        seg = work / f"rm_seg_{i}.wav"
+        if raws[i] is not None:
+            subprocess.run(
+                ["ffmpeg", "-hide_banner", "-y", "-i", str(raws[i]), "-af",
+                 "apad", "-t", f"{durations[i]}", "-ar", "44100", "-ac", "2",
+                 str(seg)],
+                check=True, capture_output=True, timeout=60,
+            )
+        else:
+            subprocess.run(
+                ["ffmpeg", "-hide_banner", "-y", "-f", "lavfi", "-i",
+                 "anullsrc=r=44100:cl=stereo", "-t", f"{durations[i]}",
+                 str(seg)],
+                check=True, capture_output=True, timeout=60,
+            )
+        segs.append(seg)
+        cursor += durations[i]
+
+    # Stage the narration inside the composer's public/ so staticFile() loads it.
+    public = composer / "public"
+    public.mkdir(exist_ok=True)
+    narration_name = "studio_narration.wav"
+    lst = work / "rm_concat.txt"
+    lst.write_text("".join(f"file '{s}'\n" for s in segs), encoding="utf-8")
+    subprocess.run(
+        ["ffmpeg", "-hide_banner", "-y", "-f", "concat", "-safe", "0", "-i",
+         str(lst), "-c", "copy", str(public / narration_name)],
+        check=True, capture_output=True, timeout=120,
+    )
+
+    props = {"cuts": cuts, "audio": {"narration": {"src": narration_name}}}
+    props_path = work / "rm_props.json"
+    props_path.write_text(json.dumps(props), encoding="utf-8")
+
+    final = work / "render.mp4"
+    cmd = [
+        "npx", "remotion", "render",
+        str(composer / "src" / "index.tsx"),
+        "Explainer", str(final), "--props", str(props_path),
+    ]
+    subprocess.run(
+        cmd, check=True, capture_output=True, timeout=600, cwd=str(composer)
+    )
+    return {
+        "path": str(final),
+        "scenes": len(cuts),
+        "seconds": round(cursor, 2),
+        "bytes": final.stat().st_size,
+        "runtime": "remotion",
+    }
+
+
 class Handler(BaseHTTPRequestHandler):
     def _send(self, code: int, payload: dict) -> None:
         body = json.dumps(payload).encode("utf-8")
@@ -334,6 +488,11 @@ class Handler(BaseHTTPRequestHandler):
             )
         elif self.path == "/voices":
             self._send(200, {"voices": _list_voices()})
+        elif self.path == "/runtimes":
+            runtimes = ["ffmpeg"]
+            if _remotion_available():
+                runtimes.append("remotion")
+            self._send(200, {"runtimes": runtimes})
         else:
             self._send(404, {"error": "not found"})
 
@@ -355,7 +514,12 @@ class Handler(BaseHTTPRequestHandler):
                 scenes = data.get("scenes") or []
                 if not scenes:
                     return self._send(400, {"error": "scenes are required"})
-                self._send(200, _render(scenes, data.get("voice") or DEFAULT_VOICE))
+                voice = data.get("voice") or DEFAULT_VOICE
+                runtime = (data.get("runtime") or "ffmpeg").lower()
+                if runtime == "remotion" and _remotion_available():
+                    self._send(200, _render_remotion(scenes, voice))
+                else:
+                    self._send(200, _render(scenes, voice))
             elif self.path == "/open":
                 path = data.get("path")
                 if not path or not Path(path).exists():

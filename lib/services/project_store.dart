@@ -15,6 +15,7 @@ class StudioProject {
     required this.stageIndex,
     required this.updatedAtIso,
     this.voice = 'Samantha',
+    this.runtime = 'ffmpeg',
     this.renderPath,
     this.renderSeconds,
     this.renderBytes,
@@ -26,6 +27,7 @@ class StudioProject {
   int stageIndex;
   String updatedAtIso;
   String voice;
+  String runtime;
   String? renderPath;
   double? renderSeconds;
   int? renderBytes;
@@ -39,6 +41,7 @@ class StudioProject {
     'stage': stageIndex,
     'updatedAt': updatedAtIso,
     'voice': voice,
+    'runtime': runtime,
     if (renderPath != null) 'renderPath': renderPath,
     if (renderSeconds != null) 'renderSeconds': renderSeconds,
     if (renderBytes != null) 'renderBytes': renderBytes,
@@ -54,6 +57,7 @@ class StudioProject {
     stageIndex: (j['stage'] as num?)?.toInt() ?? 2,
     updatedAtIso: j['updatedAt'] as String? ?? '',
     voice: j['voice'] as String? ?? 'Samantha',
+    runtime: j['runtime'] as String? ?? 'ffmpeg',
     renderPath: j['renderPath'] as String?,
     renderSeconds: (j['renderSeconds'] as num?)?.toDouble(),
     renderBytes: (j['renderBytes'] as num?)?.toInt(),

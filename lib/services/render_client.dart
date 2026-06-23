@@ -27,19 +27,44 @@ class RenderClient {
   final String baseUrl;
   final http.Client _http;
 
+  /// Lists the render runtimes the provider supports ("ffmpeg" always, plus
+  /// "remotion" when the cinematic composer is available). Empty on failure.
+  Future<List<String>> runtimes() async {
+    try {
+      final res = await _http
+          .get(Uri.parse('$baseUrl/runtimes'))
+          .timeout(const Duration(seconds: 3));
+      if (res.statusCode != 200) return const [];
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      return (body['runtimes'] as List? ?? const []).cast<String>();
+    } catch (_) {
+      return const [];
+    }
+  }
+
   /// Renders [scenes] (each `{headline, subtitle, seconds, accent}`) to an MP4,
-  /// narrated with [voice] when given.
+  /// narrated with [voice], using [runtime] ("ffmpeg" fast cards, or "remotion"
+  /// cinematic motion graphics).
   Future<RenderResult> render(
     List<Map<String, dynamic>> scenes, {
     String? voice,
+    String? runtime,
   }) async {
+    // Cinematic renders run a headless browser — give them more headroom.
+    final timeout = runtime == 'remotion'
+        ? const Duration(seconds: 600)
+        : const Duration(seconds: 300);
     final res = await _http
         .post(
           Uri.parse('$baseUrl/render'),
           headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({'scenes': scenes, 'voice': ?voice}),
+          body: jsonEncode({
+            'scenes': scenes,
+            'voice': ?voice,
+            'runtime': ?runtime,
+          }),
         )
-        .timeout(const Duration(seconds: 300));
+        .timeout(timeout);
     if (res.statusCode != 200) {
       throw RenderException('Render provider returned HTTP ${res.statusCode}');
     }

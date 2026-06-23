@@ -59,6 +59,7 @@ class _AppShellState extends State<AppShell> {
   String _projectName = 'Untitled video';
   int _projectStage = 2;
   String _projectVoice = 'Samantha';
+  String _projectRuntime = 'ffmpeg';
   String? _brief;
 
   void _go(AppView view) => setState(() => _view = view);
@@ -72,6 +73,7 @@ class _AppShellState extends State<AppShell> {
       _projectName = _deriveName(brief);
       _projectStage = 2;
       _projectVoice = 'Samantha';
+      _projectRuntime = 'ffmpeg';
       _view = AppView.studio;
     });
   }
@@ -85,6 +87,7 @@ class _AppShellState extends State<AppShell> {
       _projectName = project.name;
       _projectStage = project.stageIndex;
       _projectVoice = project.voice;
+      _projectRuntime = project.runtime;
       _view = AppView.studio;
     });
   }
@@ -118,6 +121,7 @@ class _AppShellState extends State<AppShell> {
         projectName: _projectName,
         initialStage: _projectStage,
         voice: _projectVoice,
+        runtime: _projectRuntime,
         brief: _brief,
         scenes: _scenes,
         onHome: () => _go(AppView.home),
