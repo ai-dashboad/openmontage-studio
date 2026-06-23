@@ -11,11 +11,43 @@ import 'package:http/testing.dart';
 import 'package:openmontage_studio/main.dart';
 import 'package:openmontage_studio/services/agent_service.dart';
 import 'package:openmontage_studio/services/auth_client.dart';
+import 'package:openmontage_studio/services/command_runner.dart';
 import 'package:openmontage_studio/services/ollama_client.dart';
+import 'package:openmontage_studio/services/provider_manager.dart';
 import 'package:openmontage_studio/services/render_client.dart';
 import 'package:openmontage_studio/services/tts_client.dart';
 import 'package:openmontage_studio/services/update_checker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+/// A fake command runner so the media clients exercise their real logic without
+/// spawning say/ffmpeg. `npx` is reported absent so Remotion isn't offered.
+class _FakeRunner implements CommandRunner {
+  @override
+  Future<CommandResult> run(
+    String exe,
+    List<String> args, {
+    String? workingDirectory,
+    Duration timeout = const Duration(seconds: 180),
+  }) async {
+    if (exe == 'afinfo') {
+      return const CommandResult(0, 'estimated duration: 2.30', '');
+    }
+    if (exe == 'say' && args.contains('?')) {
+      return const CommandResult(
+        0,
+        'Samantha            en_US    # hi\nAlex                en_US    # hi',
+        '',
+      );
+    }
+    return const CommandResult(0, '', '');
+  }
+
+  @override
+  void spawn(String exe, List<String> args) {}
+
+  @override
+  Future<bool> exists(String exe) async => exe == 'say' || exe == 'ffmpeg';
+}
 
 const _testAccount = Account(
   id: 'tester',
@@ -53,52 +85,10 @@ AgentService _mockAgent({String reply = 'Here is a three-beat plan.'}) {
   return AgentService(ollama: OllamaClient(httpClient: client));
 }
 
-/// A mock TTS provider that reports a synthesized clip without touching disk.
-TtsClient _mockTts() {
-  final client = MockClient((request) async {
-    if (request.url.path.endsWith('/health')) {
-      return http.Response(jsonEncode({'ok': true}), 200);
-    }
-    if (request.url.path.endsWith('/tts/play')) {
-      return http.Response(jsonEncode({'ok': true}), 200);
-    }
-    if (request.url.path.endsWith('/tts')) {
-      return http.Response(
-        jsonEncode({
-          'path': '/tmp/narration_1.aiff',
-          'voice': 'Samantha',
-          'bytes': 104142,
-          'seconds': 2.3,
-        }),
-        200,
-      );
-    }
-    return http.Response('not found', 404);
-  });
-  return TtsClient(httpClient: client);
-}
-
-/// A mock render provider that reports a finished MP4 without touching ffmpeg.
-RenderClient _mockRender() {
-  final client = MockClient((request) async {
-    if (request.url.path.endsWith('/render')) {
-      return http.Response(
-        jsonEncode({
-          'path': '/tmp/openmontage-tts/render/render.mp4',
-          'scenes': 5,
-          'seconds': 23.0,
-          'bytes': 73853,
-        }),
-        200,
-      );
-    }
-    if (request.url.path.endsWith('/open')) {
-      return http.Response(jsonEncode({'ok': true}), 200);
-    }
-    return http.Response('not found', 404);
-  });
-  return RenderClient(httpClient: client);
-}
+/// Media clients backed by the fake runner — exercise real client logic with no
+/// real processes.
+TtsClient _mockTts() => TtsClient(runner: _FakeRunner());
+RenderClient _mockRender() => RenderClient(runner: _FakeRunner());
 
 /// A mock update checker that reports the given latest [version] (default the
 /// current one, i.e. no update), without hitting the network.
@@ -127,12 +117,16 @@ Future<void> _boot(
   SharedPreferences.setMockInitialValues({});
   await tester.binding.setSurfaceSize(_desktop);
   addTearDown(() => tester.binding.setSurfaceSize(null));
+  final a = agent ?? _mockAgent();
+  final t = tts ?? _mockTts();
+  final r = render ?? _mockRender();
   await tester.pumpWidget(
     OpenMontageStudioApp(
-      agentService: agent ?? _mockAgent(),
-      ttsClient: tts ?? _mockTts(),
-      renderClient: render ?? _mockRender(),
+      agentService: a,
+      ttsClient: t,
+      renderClient: r,
       updateChecker: update ?? _mockUpdate(),
+      providerManager: ProviderManager(agent: a, media: t, runner: _FakeRunner()),
       initialAccount: _testAccount, // bypass the auth gate
     ),
   );
@@ -233,8 +227,7 @@ void main() {
     await tester.tap(find.text('Generate narration'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Narration ready'), findsOneWidget);
-    expect(find.textContaining('Samantha'), findsOneWidget);
+    expect(find.textContaining('Narration ready · Samantha'), findsOneWidget);
   });
 
   testWidgets('adding and deleting scenes changes the plan length', (

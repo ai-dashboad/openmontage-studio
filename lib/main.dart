@@ -16,9 +16,8 @@ void main() {
   final agent = AgentService();
   final tts = TtsClient();
   final provider = ProviderManager(agent: agent, media: tts);
-  // Auto-start the local media provider so the user never needs a terminal.
-  // Fire-and-forget: it notifies listeners as it comes up.
-  provider.ensureRunning();
+  // The app drives `say`/ffmpeg/Remotion directly — no server to start. The UI
+  // probes tool availability when the home/studio mounts.
   runApp(
     OpenMontageStudioApp(
       agentService: agent,

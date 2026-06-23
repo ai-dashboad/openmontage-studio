@@ -72,9 +72,6 @@ flutter:
   # Agent knowledge — the editable skills that drive the pipeline.
   assets:
     - assets/skills/
-    # The local media provider, bundled so the app can auto-start it without
-    # the project tree present (extracted to a temp file at runtime).
-    - backend/provider_server.py
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
