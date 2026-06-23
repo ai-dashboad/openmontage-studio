@@ -3,16 +3,16 @@ import 'app_shell.dart';
 import 'theme/app_theme.dart';
 
 void main() {
-  runApp(const ReelforgeApp());
+  runApp(const OpenMontageStudioApp());
 }
 
-class ReelforgeApp extends StatelessWidget {
-  const ReelforgeApp({super.key});
+class OpenMontageStudioApp extends StatelessWidget {
+  const OpenMontageStudioApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Reelforge',
+      title: 'OpenMontage Studio',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
       home: const AppShell(),

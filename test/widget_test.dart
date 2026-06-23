@@ -4,7 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:reelforge/main.dart';
+import 'package:openmontage_studio/main.dart';
 
 // The shell targets a minimum desktop window of 1100x720.
 const _desktop = Size(1280, 832);
@@ -13,7 +13,7 @@ const _desktop = Size(1280, 832);
 Future<void> _boot(WidgetTester tester) async {
   await tester.binding.setSurfaceSize(_desktop);
   addTearDown(() => tester.binding.setSurfaceSize(null));
-  await tester.pumpWidget(const ReelforgeApp());
+  await tester.pumpWidget(const OpenMontageStudioApp());
   await tester.pumpAndSettle();
 }
 
@@ -29,7 +29,7 @@ void main() {
   ) async {
     await _boot(tester);
 
-    expect(find.text('Reelforge'), findsOneWidget);
+    expect(find.text('OpenMontage Studio'), findsOneWidget);
     expect(find.text('Start a new video'), findsOneWidget);
     expect(find.text('Composition'), findsOneWidget);
   });

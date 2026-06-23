@@ -20,7 +20,7 @@ enum WorkStatus {
   };
 }
 
-/// One stage of the Reelforge production pipeline.
+/// One stage of the OpenMontage Studio production pipeline.
 class PipelineStage {
   const PipelineStage(this.name, this.status);
   final String name;

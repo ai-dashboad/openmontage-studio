@@ -48,7 +48,7 @@ class TopBar extends StatelessWidget {
           ),
           const SizedBox(width: 4),
           const Text(
-            'Reelforge',
+            'OpenMontage',
             style: TextStyle(
               color: AppColors.textPrimary,
               fontWeight: FontWeight.w600,

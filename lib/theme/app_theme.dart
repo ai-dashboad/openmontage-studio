@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Design tokens for the Reelforge desktop UI.
+/// Design tokens for the OpenMontage Studio desktop UI.
 ///
 /// A deep slate base with a single bright accent used for active state and the
 /// approval action, so the shell feels continuous with the videos it produces.

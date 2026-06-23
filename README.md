@@ -1,9 +1,9 @@
-# Reelforge
+# OpenMontage Studio
 
 A desktop studio for **AI-orchestrated video production**, built with Flutter for
 macOS (and, later, the other desktop targets).
 
-Reelforge treats video creation as a guided pipeline rather than a blank timeline:
+OpenMontage Studio treats video creation as a guided pipeline rather than a blank timeline:
 an agent proposes a plan, you review and approve each creative stage, and the app
 composes the result. The interface is **studio-first** — the preview and a
 dual-layer timeline take center stage, the agent conversation docks to the side,

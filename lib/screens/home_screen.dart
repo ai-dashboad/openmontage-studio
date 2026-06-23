@@ -57,7 +57,7 @@ class _Header extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: const [
             Text(
-              'Reelforge',
+              'OpenMontage Studio',
               style: TextStyle(
                 color: AppColors.textPrimary,
                 fontSize: 24,
