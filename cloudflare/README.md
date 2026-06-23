@@ -83,8 +83,12 @@ never saw the opt-in), which they can change later in settings.
 - **Collect the minimum.** The schema stores email, name, a password hash, and
   timestamps. Add fields deliberately, and don't store sensitive data you don't
   need.
-- **Harden before real users:** add Cloudflare Turnstile on the signup path
-  (bot defence), rate-limit `login`/`register`, and add email verification +
-  password reset. Consider passkeys/OAuth to avoid storing passwords at all.
+- **Rate limiting (in place):** `register` is throttled per IP (10/hour) and
+  `login` per IP (20/15 min) and per target email (8/15 min), returning 429 when
+  exceeded. It's KV-backed, so the cutoff is approximate under a burst; for
+  precise limits move to a Durable Object or the native rate-limiting binding.
+- **Still to harden before real users:** Cloudflare Turnstile on signup (bot
+  defence — best paired with a web signup page; awkward in a desktop client),
+  email verification + password reset. OAuth already avoids storing a password.
 - If you serve EU/CA users, add consent + a privacy policy and a delete-account
   path (GDPR/CCPA).

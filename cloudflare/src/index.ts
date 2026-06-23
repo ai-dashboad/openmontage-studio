@@ -159,6 +159,25 @@ function geoCountry(request: Request): string | null {
   return cf?.country ?? null;
 }
 
+function clientIp(request: Request): string {
+  return request.headers.get('CF-Connecting-IP') ?? 'unknown';
+}
+
+/// Approximate fixed-window rate limiter backed by KV. Returns true if the call
+/// is allowed, false if [key] has exceeded [limit] within [windowSec].
+async function rateLimit(
+  env: Env,
+  key: string,
+  limit: number,
+  windowSec: number,
+): Promise<boolean> {
+  const k = `rl:${key}`;
+  const count = parseInt((await env.SESSIONS.get(k)) ?? '0', 10);
+  if (count >= limit) return false;
+  await env.SESSIONS.put(k, String(count + 1), { expirationTtl: windowSec });
+  return true;
+}
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 async function loadUser(env: Env, id: string): Promise<UserRow | null> {
@@ -168,6 +187,10 @@ async function loadUser(env: Env, id: string): Promise<UserRow | null> {
 // ---- handlers ----
 
 async function register(request: Request, env: Env): Promise<Response> {
+  // Throttle sign-ups per IP to blunt bulk/bot registration.
+  if (!(await rateLimit(env, `reg:${clientIp(request)}`, 10, 3600))) {
+    return json({ error: 'too many sign-up attempts, try again later' }, 429);
+  }
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const email = String(body.email ?? '').trim().toLowerCase();
   const password = String(body.password ?? '');
@@ -223,6 +246,14 @@ async function login(request: Request, env: Env): Promise<Response> {
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const email = String(body.email ?? '').trim().toLowerCase();
   const password = String(body.password ?? '');
+
+  // Throttle by IP and by target email to blunt brute-force / credential
+  // stuffing, before doing any password work.
+  const okIp = await rateLimit(env, `login:${clientIp(request)}`, 20, 900);
+  const okEmail = await rateLimit(env, `loginem:${email}`, 8, 900);
+  if (!okIp || !okEmail) {
+    return json({ error: 'too many attempts, try again later' }, 429);
+  }
 
   const row = await env.DB.prepare('SELECT * FROM users WHERE email = ?')
     .bind(email)
