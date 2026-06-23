@@ -62,6 +62,21 @@ class RenderClient {
       // Opening is a nicety; ignore failures.
     }
   }
+
+  /// Reveals a finished clip in Finder (select it in its folder). Best-effort.
+  Future<void> reveal(String path) async {
+    try {
+      await _http
+          .post(
+            Uri.parse('$baseUrl/reveal'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'path': path}),
+          )
+          .timeout(const Duration(seconds: 5));
+    } catch (_) {
+      // Revealing is a nicety; ignore failures.
+    }
+  }
 }
 
 class RenderException implements Exception {

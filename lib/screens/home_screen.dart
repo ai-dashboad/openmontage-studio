@@ -1,27 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../models/catalog.dart';
 import '../models/studio_models.dart';
 import '../services/agent_service.dart';
+import '../services/project_store.dart';
+import '../services/provider_manager.dart';
 import '../services/update_checker.dart';
 import '../theme/app_theme.dart';
 
-/// The launcher: a brief composer to start a video, a capability dashboard, and
-/// recent projects. This is the "what can you do" entry point.
+/// The launcher: a brief composer to start a video, a live engine status, and
+/// recent renders. This is the "what can you do" entry point.
 ///
 /// Submitting a brief asks the agent to draft a scene plan; [onOpenProject] is
-/// called with that plan (or null to open the sample) and opens the studio.
+/// called with that plan (or null to open the sample) plus the brief text, and
+/// opens the studio.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
     super.key,
     required this.agent,
+    required this.provider,
+    required this.projects,
     required this.onOpenProject,
+    required this.onReopenProject,
     required this.onOpenSettings,
     this.updateChecker,
   });
 
   final AgentService agent;
-  final ValueChanged<List<Scene>?> onOpenProject;
+  final ProviderManager provider;
+  final ProjectStore projects;
+  final void Function(List<Scene>? scenes, String? brief) onOpenProject;
+  final ValueChanged<StudioProject> onReopenProject;
   final VoidCallback onOpenSettings;
 
   /// When provided, the home checks for a newer release and shows a banner.
@@ -35,11 +43,19 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _brief = TextEditingController();
   bool _planning = false;
   UpdateInfo? _update;
+  List<StudioProject> _projects = const [];
 
   @override
   void initState() {
     super.initState();
     _checkForUpdate();
+    widget.provider.probe();
+    _loadProjects();
+  }
+
+  Future<void> _loadProjects() async {
+    final items = await widget.projects.load();
+    if (mounted) setState(() => _projects = items);
   }
 
   Future<void> _checkForUpdate() async {
@@ -61,18 +77,18 @@ class _HomeScreenState extends State<HomeScreen> {
     final brief = _brief.text.trim();
     // No brief, or already working: open the sample project.
     if (brief.isEmpty) {
-      widget.onOpenProject(null);
+      widget.onOpenProject(null, null);
       return;
     }
     setState(() => _planning = true);
     try {
       final scenes = await widget.agent.planScenes(brief);
       if (!mounted) return;
-      widget.onOpenProject(scenes);
+      widget.onOpenProject(scenes, brief);
     } catch (_) {
       // Agent unreachable or unparseable — fall back to the sample plan.
       if (!mounted) return;
-      widget.onOpenProject(null);
+      widget.onOpenProject(null, brief);
     } finally {
       if (mounted) setState(() => _planning = false);
     }
@@ -98,14 +114,25 @@ class _HomeScreenState extends State<HomeScreen> {
                 planning: _planning,
                 onCreate: _create,
               ),
+              const SizedBox(height: 20),
+              _EngineStatus(
+                provider: widget.provider,
+                onRetry: () async {
+                  await widget.provider.ensureRunning();
+                  await widget.provider.probe();
+                },
+              ),
               const SizedBox(height: 32),
-              const _SectionLabel('Your capabilities'),
+              const _SectionLabel('Optional cloud providers'),
               const SizedBox(height: 12),
               const _CapabilityGrid(),
               const SizedBox(height: 32),
-              const _SectionLabel('Recent'),
+              const _SectionLabel('Your projects'),
               const SizedBox(height: 12),
-              _RecentList(onOpen: () => widget.onOpenProject(null)),
+              _ProjectList(
+                items: _projects,
+                onReopen: widget.onReopenProject,
+              ),
             ],
           ),
         ),
@@ -408,28 +435,151 @@ class _CapabilityCard extends StatelessWidget {
   }
 }
 
-class _RecentList extends StatelessWidget {
-  const _RecentList({required this.onOpen});
-  final VoidCallback onOpen;
+/// Live status of the two local engines, reflecting real health checks so the
+/// home screen tells the truth about what will work right now.
+class _EngineStatus extends StatelessWidget {
+  const _EngineStatus({required this.provider, required this.onRetry});
+  final ProviderManager provider;
+  final Future<void> Function() onRetry;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        for (final p in Catalog.recents) _RecentRow(project: p, onOpen: onOpen),
-      ],
+    return ListenableBuilder(
+      listenable: provider,
+      builder: (context, _) {
+        final starting = provider.mediaPhase == MediaPhase.starting;
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.bolt, size: 16, color: AppColors.accentCyan),
+              const SizedBox(width: 8),
+              const Text(
+                'Local engine',
+                style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
+              ),
+              const SizedBox(width: 16),
+              _pill('Agent', provider.agentUp, false),
+              const SizedBox(width: 8),
+              _pill('Voice + Render', provider.mediaUp, starting),
+              const Spacer(),
+              if (!provider.mediaUp && !starting)
+                TextButton(
+                  onPressed: onRetry,
+                  child: const Text(
+                    'Start',
+                    style: TextStyle(color: AppColors.accentCyan),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _pill(String label, bool up, bool starting) {
+    final color = starting
+        ? AppColors.accentAmber
+        : up
+        ? AppColors.accentGreen
+        : AppColors.textFaint;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            starting ? '$label · starting…' : label,
+            style: TextStyle(color: color, fontSize: 11.5),
+          ),
+        ],
+      ),
     );
   }
 }
 
-class _RecentRow extends StatelessWidget {
-  const _RecentRow({required this.project, required this.onOpen});
-  final RecentProject project;
-  final VoidCallback onOpen;
+/// Saved projects; clicking a row reopens it for editing, the play button (when
+/// a render exists) opens the finished file.
+class _ProjectList extends StatelessWidget {
+  const _ProjectList({required this.items, required this.onReopen});
+  final List<StudioProject> items;
+  final ValueChanged<StudioProject> onReopen;
 
   @override
   Widget build(BuildContext context) {
-    final complete = project.stagesDone >= Catalog.pipelineStages;
+    if (items.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.movie_outlined, color: AppColors.textFaint, size: 18),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'No projects yet — describe a video above to start your first one.',
+                style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return Column(
+      children: [for (final p in items) _ProjectRow(project: p, onReopen: onReopen)],
+    );
+  }
+}
+
+class _ProjectRow extends StatelessWidget {
+  const _ProjectRow({required this.project, required this.onReopen});
+  final StudioProject project;
+  final ValueChanged<StudioProject> onReopen;
+
+  static const _stages = [
+    'idea',
+    'script',
+    'scene_plan',
+    'assets',
+    'edit',
+    'compose',
+    'publish',
+  ];
+
+  String _when() {
+    final ts = DateTime.tryParse(project.updatedAtIso);
+    if (ts == null) return '';
+    final d = DateTime.now().difference(ts);
+    if (d.inMinutes < 1) return 'just now';
+    if (d.inMinutes < 60) return '${d.inMinutes}m ago';
+    if (d.inHours < 24) return '${d.inHours}h ago';
+    return '${d.inDays}d ago';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final stageName = _stages[project.stageIndex.clamp(0, _stages.length - 1)];
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
@@ -437,7 +587,7 @@ class _RecentRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         child: InkWell(
           borderRadius: BorderRadius.circular(10),
-          onTap: onOpen,
+          onTap: () => onReopen(project),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
@@ -450,12 +600,12 @@ class _RecentRow extends StatelessWidget {
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: project.accent.withValues(alpha: 0.18),
+                    color: AppColors.accentCyan.withValues(alpha: 0.18),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
-                    complete ? Icons.movie : Icons.edit_note,
-                    color: project.accent,
+                    project.hasRender ? Icons.movie : Icons.edit_note,
+                    color: AppColors.accentCyan,
                     size: 18,
                   ),
                 ),
@@ -466,15 +616,15 @@ class _RecentRow extends StatelessWidget {
                     children: [
                       Text(
                         project.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 14,
                         ),
                       ),
                       Text(
-                        complete
-                            ? 'Complete · ${project.updated}'
-                            : 'Stage ${project.stagesDone}/${Catalog.pipelineStages} · ${project.updated}',
+                        '${project.scenes.length} scenes · $stageName · ${_when()}',
                         style: const TextStyle(
                           color: AppColors.textFaint,
                           fontSize: 12,
@@ -483,19 +633,16 @@ class _RecentRow extends StatelessWidget {
                     ],
                   ),
                 ),
-                SizedBox(
-                  width: 80,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(3),
-                    child: LinearProgressIndicator(
-                      value: project.stagesDone / Catalog.pipelineStages,
-                      minHeight: 4,
-                      backgroundColor: AppColors.surfaceHigh,
-                      valueColor: AlwaysStoppedAnimation(project.accent),
+                if (project.hasRender)
+                  IconButton(
+                    tooltip: 'Play render',
+                    onPressed: () => launchUrl(Uri.file(project.renderPath!)),
+                    icon: const Icon(
+                      Icons.play_circle_outline,
+                      color: AppColors.accentCyan,
+                      size: 20,
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
                 const Icon(
                   Icons.chevron_right,
                   color: AppColors.textFaint,

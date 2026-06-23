@@ -1,21 +1,28 @@
 import 'package:flutter/material.dart';
 import '../models/studio_models.dart';
+import '../services/provider_manager.dart';
 import '../theme/app_theme.dart';
 
-/// Region A — the unified toolbar: project identity, online/offline state, the
-/// render action, and a live budget meter.
+/// Region A — the unified toolbar: project identity, live service status,
+/// online/offline state, the render action, and a budget meter.
 class TopBar extends StatelessWidget {
   const TopBar({
     super.key,
     required this.isOnline,
     required this.onToggleOnline,
+    this.projectName = 'Untitled video',
+    this.provider,
+    this.onRetryServices,
     this.onHome,
     this.onOpenSettings,
     this.onRender,
   });
 
   final bool isOnline;
+  final String projectName;
   final VoidCallback onToggleOnline;
+  final ProviderManager? provider;
+  final VoidCallback? onRetryServices;
   final VoidCallback? onHome;
   final VoidCallback? onOpenSettings;
   final VoidCallback? onRender;
@@ -56,8 +63,15 @@ class TopBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 20),
-          Flexible(child: _ProjectChip(name: MockProject.name)),
+          Flexible(child: _ProjectChip(name: projectName)),
           const Spacer(),
+          if (provider != null) ...[
+            _ServiceStatus(
+              provider: provider!,
+              onRetry: onRetryServices,
+            ),
+            const SizedBox(width: 16),
+          ],
           _OnlineToggle(isOnline: isOnline, onTap: onToggleOnline),
           const SizedBox(width: 16),
           _BudgetMeter(fraction: spentFraction),
@@ -119,6 +133,81 @@ class _ProjectChip extends StatelessWidget {
           const Icon(Icons.expand_more, color: AppColors.textMuted, size: 16),
         ],
       ),
+    );
+  }
+}
+
+/// Live status lights for the local services: the agent (Ollama) and the media
+/// provider (ffmpeg + voice). Tapping retries — and starts the media provider
+/// if it is down — so the user fixes "service offline" without a terminal.
+class _ServiceStatus extends StatelessWidget {
+  const _ServiceStatus({required this.provider, this.onRetry});
+  final ProviderManager provider;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: provider,
+      builder: (context, _) {
+        final starting = provider.mediaPhase == MediaPhase.starting;
+        return Tooltip(
+          message: starting
+              ? 'Starting the media provider…'
+              : 'Agent: ${provider.agentUp ? "online" : "offline"} · '
+                    'Media: ${provider.mediaUp ? "online" : "offline"}'
+                    '${provider.mediaUp ? "" : " — click to start"}',
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: onRetry,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _dot('agent', provider.agentUp),
+                  const SizedBox(width: 12),
+                  if (starting)
+                    const SizedBox(
+                      width: 8,
+                      height: 8,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1.6,
+                        color: AppColors.accentAmber,
+                      ),
+                    )
+                  else
+                    _dot('media', provider.mediaUp),
+                  const SizedBox(width: 4),
+                  const Text(
+                    'media',
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _dot(String label, bool up) {
+    final color = up ? AppColors.accentGreen : AppColors.accentAmber;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+        ),
+      ],
     );
   }
 }

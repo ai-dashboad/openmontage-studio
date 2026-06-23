@@ -5,6 +5,8 @@ import 'screens/settings_screen.dart';
 import 'screens/studio_screen.dart';
 import 'auth/account_session.dart';
 import 'services/agent_service.dart';
+import 'services/project_store.dart';
+import 'services/provider_manager.dart';
 import 'services/render_client.dart';
 import 'services/tts_client.dart';
 import 'services/update_checker.dart';
@@ -22,6 +24,8 @@ class AppShell extends StatefulWidget {
     this.ttsClient,
     this.renderClient,
     this.updateChecker,
+    this.providerManager,
+    this.projectStore,
     this.session,
   });
 
@@ -30,6 +34,8 @@ class AppShell extends StatefulWidget {
   final TtsClient? ttsClient;
   final RenderClient? renderClient;
   final UpdateChecker? updateChecker;
+  final ProviderManager? providerManager;
+  final ProjectStore? projectStore;
   final AccountSession? session;
 
   @override
@@ -41,17 +47,50 @@ class _AppShellState extends State<AppShell> {
   late final AgentService _agent = widget.agentService ?? AgentService();
   late final TtsClient _tts = widget.ttsClient ?? TtsClient();
   late final RenderClient _render = widget.renderClient ?? RenderClient();
+  late final ProviderManager _provider =
+      widget.providerManager ?? ProviderManager(agent: _agent, media: _tts);
+  late final ProjectStore _projects = widget.projectStore ?? ProjectStore();
 
   /// The plan driving the studio — the agent's output, or the sample default.
   List<Scene> _scenes = MockProject.scenes;
 
+  /// Identity/state of the project currently open in the studio.
+  String _projectId = 'sample';
+  String _projectName = 'Untitled video';
+  int _projectStage = 2;
+  String? _brief;
+
   void _go(AppView view) => setState(() => _view = view);
 
-  void _openStudio(List<Scene>? scenes) {
+  /// Starts a NEW project from a brief (or the sample when empty).
+  void _startProject(List<Scene>? scenes, String? brief) {
     setState(() {
       _scenes = scenes ?? MockProject.scenes;
+      _brief = brief;
+      _projectId = 'proj_${DateTime.now().microsecondsSinceEpoch}';
+      _projectName = _deriveName(brief);
+      _projectStage = 2;
       _view = AppView.studio;
     });
+  }
+
+  /// Reopens a saved project for further editing.
+  void _reopenProject(StudioProject project) {
+    setState(() {
+      _scenes = project.scenes.isNotEmpty ? project.scenes : MockProject.scenes;
+      _brief = null;
+      _projectId = project.id;
+      _projectName = project.name;
+      _projectStage = project.stageIndex;
+      _view = AppView.studio;
+    });
+  }
+
+  String _deriveName(String? brief) {
+    final b = brief?.trim();
+    if (b == null || b.isEmpty) return 'Untitled video';
+    final words = b.split(RegExp(r'\s+')).take(6).join(' ');
+    return words.length > 48 ? '${words.substring(0, 48)}…' : words;
   }
 
   @override
@@ -59,7 +98,10 @@ class _AppShellState extends State<AppShell> {
     return switch (_view) {
       AppView.home => HomeScreen(
         agent: _agent,
-        onOpenProject: _openStudio,
+        provider: _provider,
+        projects: _projects,
+        onOpenProject: _startProject,
+        onReopenProject: _reopenProject,
         onOpenSettings: () => _go(AppView.settings),
         updateChecker: widget.updateChecker,
       ),
@@ -67,6 +109,12 @@ class _AppShellState extends State<AppShell> {
         agent: _agent,
         tts: _tts,
         render: _render,
+        provider: _provider,
+        projectStore: _projects,
+        projectId: _projectId,
+        projectName: _projectName,
+        initialStage: _projectStage,
+        brief: _brief,
         scenes: _scenes,
         onHome: () => _go(AppView.home),
         onOpenSettings: () => _go(AppView.settings),

@@ -46,7 +46,7 @@ FONT = next(
 BG = "0x0F172A"  # studio background
 HEADLINE_COLOR = "0xE2E8F0"
 SUBTITLE_COLOR = "0x94A3B8"
-W, H, FPS = 1280, 720, 30
+W, H, FPS = 1920, 1080, 30
 
 _clip_index = 0
 
@@ -114,26 +114,27 @@ def _render(scenes: list[dict], voice: str) -> dict:
         # the piece fades in on the first scene and out on the last.
         title = (sc.get("title") or "").strip()
         stype = (sc.get("type") or "").strip()
+        # Font sizes are tuned for the 1080p canvas.
         if stype == "stat_card":
-            hsize = 84
+            hsize = 124
         elif len(headline) > 26:
-            hsize = 42
+            hsize = 62
         elif len(headline) > 16:
-            hsize = 56
+            hsize = 84
         else:
-            hsize = 66
+            hsize = 98
         hcolor = accent if stype == "stat_card" else HEADLINE_COLOR
 
         filters = ["vignette=PI/4.5"]
         if headline:
             filters.append(
-                f"drawbox=x=(iw-64)/2:y={int(H * 0.40)}:w=64:h=4:color={accent}@1:t=fill"
+                f"drawbox=x=(iw-96)/2:y={int(H * 0.40)}:w=96:h=6:color={accent}@1:t=fill"
             )
         if title:
             kf = work / f"kick_{i}.txt"
             kf.write_text(title.upper(), encoding="utf-8")
             filters.append(
-                f"drawtext=fontfile={FONT}:textfile={kf}:fontcolor={accent}:fontsize=22:"
+                f"drawtext=fontfile={FONT}:textfile={kf}:fontcolor={accent}:fontsize=32:"
                 f"x=(w-text_w)/2:y={int(H * 0.33)}:alpha='if(lt(t,0.3),t/0.3,1)'"
             )
         if headline:
@@ -142,14 +143,14 @@ def _render(scenes: list[dict], voice: str) -> dict:
             filters.append(
                 f"drawtext=fontfile={FONT}:textfile={hf}:fontcolor={hcolor}:fontsize={hsize}:"
                 f"x=(w-text_w)/2:y={int(H * 0.45)}:alpha='if(lt(t,0.45),t/0.45,1)':"
-                f"shadowcolor=black@0.6:shadowx=0:shadowy=2"
+                f"shadowcolor=black@0.6:shadowx=0:shadowy=3"
             )
         if subtitle:
             sf = work / f"sub_{i}.txt"
             sf.write_text(subtitle, encoding="utf-8")
             filters.append(
-                f"drawtext=fontfile={FONT}:textfile={sf}:fontcolor={SUBTITLE_COLOR}:fontsize=30:"
-                f"x=(w-text_w)/2:y={int(H * 0.45) + hsize + 22}:"
+                f"drawtext=fontfile={FONT}:textfile={sf}:fontcolor={SUBTITLE_COLOR}:fontsize=44:"
+                f"x=(w-text_w)/2:y={int(H * 0.45) + hsize + 30}:"
                 f"alpha='if(lt(t,0.35),0,if(lt(t,0.75),(t-0.35)/0.4,1))'"
             )
         if i == 0:
@@ -266,6 +267,12 @@ class Handler(BaseHTTPRequestHandler):
                 if not path or not Path(path).exists():
                     return self._send(400, {"error": "valid path is required"})
                 subprocess.Popen(["open", path])  # opens in the default player
+                self._send(200, {"ok": True})
+            elif self.path == "/reveal":
+                path = data.get("path")
+                if not path or not Path(path).exists():
+                    return self._send(400, {"error": "valid path is required"})
+                subprocess.Popen(["open", "-R", path])  # selects it in Finder
                 self._send(200, {"ok": True})
             else:
                 self._send(404, {"error": "not found"})

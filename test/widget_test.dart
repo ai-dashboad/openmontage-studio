@@ -124,6 +124,7 @@ Future<void> _boot(
   RenderClient? render,
   UpdateChecker? update,
 }) async {
+  SharedPreferences.setMockInitialValues({});
   await tester.binding.setSurfaceSize(_desktop);
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
@@ -215,7 +216,10 @@ void main() {
     // The live status bar shows the connected local model.
     expect(find.text('qwen2.5:latest'), findsOneWidget);
 
-    await tester.enterText(find.byType(TextField).last, 'Plan it');
+    await tester.enterText(
+      find.byKey(const Key('agentComposer')),
+      'Plan it',
+    );
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
 
@@ -231,6 +235,26 @@ void main() {
 
     expect(find.textContaining('Narration ready'), findsOneWidget);
     expect(find.textContaining('Samantha'), findsOneWidget);
+  });
+
+  testWidgets('adding and deleting scenes changes the plan length', (
+    tester,
+  ) async {
+    await _boot(tester);
+    await _enterStudio(tester);
+
+    // The sample opens with 5 scenes, selection on the 2nd.
+    expect(find.text('SCENE 2 / 5'), findsOneWidget);
+
+    // Add a scene after the selection -> 6 scenes, selection moves to it.
+    await tester.tap(find.byTooltip('Add scene'));
+    await tester.pumpAndSettle();
+    expect(find.text('SCENE 3 / 6'), findsOneWidget);
+
+    // Delete it -> back to 5.
+    await tester.tap(find.byTooltip('Delete scene'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('/ 5'), findsOneWidget);
   });
 
   testWidgets('approving walks the pipeline forward to compose', (

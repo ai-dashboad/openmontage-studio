@@ -115,6 +115,48 @@ Start with a hero_title hook and end with a text_card close.''';
     return scenes;
   }
 
+  /// Revises a single [scene] per a natural-language [instruction], returning
+  /// the scene with an updated headline/subtitle. Throws if the model is
+  /// unreachable or returns nothing usable; callers can keep the original.
+  Future<Scene> reviseScene(Scene scene, String instruction) async {
+    final text = await _ollama.chat([
+      {
+        'role': 'system',
+        'content':
+            'You revise one scene of a short video. Given the current scene and '
+            'an instruction, respond with ONLY a JSON object (no prose, no code '
+            'fences) with two fields: "headline" and "subtitle". Keep the '
+            'headline punchy and the subtitle a short supporting line.',
+      },
+      {
+        'role': 'user',
+        'content':
+            'Current headline: "${scene.headline}"\n'
+            'Current subtitle: "${scene.subtitle}"\n'
+            'Instruction: $instruction',
+      },
+    ]);
+    final start = text.indexOf('{');
+    final end = text.lastIndexOf('}');
+    if (start < 0 || end <= start) {
+      throw const OllamaException('Model returned no usable revision');
+    }
+    final Map<String, dynamic> obj;
+    try {
+      obj = jsonDecode(text.substring(start, end + 1)) as Map<String, dynamic>;
+    } catch (_) {
+      throw const OllamaException('Model revision was not valid JSON');
+    }
+    return scene.copyWith(
+      headline: (obj['headline'] as String?)?.trim().isNotEmpty == true
+          ? (obj['headline'] as String).trim()
+          : scene.headline,
+      subtitle: (obj['subtitle'] as String?)?.trim().isNotEmpty == true
+          ? (obj['subtitle'] as String).trim()
+          : scene.subtitle,
+    );
+  }
+
   static const List<Color> _accents = [
     AppColors.accentCyan,
     AppColors.accentPurple,

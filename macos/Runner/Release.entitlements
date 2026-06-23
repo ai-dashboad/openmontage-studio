@@ -2,8 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Unsandboxed: the app spawns the local media provider, copies finished
+	     renders to a user-chosen location, and reveals them in Finder. This is
+	     a Developer-ID/.dmg distribution, not the Mac App Store. -->
 	<key>com.apple.security.app-sandbox</key>
-	<true/>
+	<false/>
 	<key>com.apple.security.network.client</key>
 	<true/>
 </dict>

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../models/studio_models.dart';
 import '../services/agent_service.dart';
+import '../services/conversation.dart';
+import '../services/project_store.dart';
+import '../services/provider_manager.dart';
 import '../services/render_client.dart';
 import '../services/tts_client.dart';
 import '../theme/app_theme.dart';
@@ -12,15 +15,22 @@ import '../widgets/side_panel.dart';
 import '../widgets/timeline.dart';
 import '../widgets/top_bar.dart';
 
-/// The studio-first main editor. Owns the small amount of UI state that links
-/// the timeline, preview, and inspector together: selected scene, playhead, the
-/// active rail surface, and online/offline mode.
+/// The studio-first main editor. Owns the state that links the timeline,
+/// preview, and inspector: the (editable) scene plan with undo/redo, the
+/// selected scene, the playhead, the active rail surface, the shared agent
+/// conversation, and online/offline mode.
 class StudioScreen extends StatefulWidget {
   const StudioScreen({
     super.key,
     required this.agent,
     required this.tts,
     required this.render,
+    required this.provider,
+    required this.projectStore,
+    required this.projectId,
+    this.projectName = 'Untitled video',
+    this.initialStage = 2,
+    this.brief,
     this.scenes = MockProject.scenes,
     this.onHome,
     this.onOpenSettings,
@@ -29,6 +39,17 @@ class StudioScreen extends StatefulWidget {
   final AgentService agent;
   final TtsClient tts;
   final RenderClient render;
+  final ProviderManager provider;
+  final ProjectStore projectStore;
+
+  /// Identity of the project being edited, so edits persist under one record.
+  final String projectId;
+  final String projectName;
+  final int initialStage;
+
+  /// The brief the user typed on the home screen, if any — seeds the agent
+  /// conversation so the studio continues the same thread.
+  final String? brief;
 
   /// The scene plan driving the editor — defaults to the sample, or an
   /// agent-generated plan passed in from the home brief.
@@ -48,7 +69,23 @@ class _StudioScreenState extends State<StudioScreen> {
 
   /// Current pipeline stage (index into MockProject.stages). The studio opens on
   /// scene_plan; approving walks it forward to compose.
-  int _stage = 2;
+  late int _stage;
+
+  /// The editable scene plan plus its edit history (for undo/redo).
+  late List<Scene> _scenes;
+  final List<List<Scene>> _undo = [];
+  final List<List<Scene>> _redo = [];
+
+  late final ConversationController _conversation;
+  late String _projectName;
+
+  // The most recent render for this project, persisted with it.
+  String? _renderPath;
+  double? _renderSeconds;
+  int? _renderBytes;
+
+  bool _narrating = false;
+  bool _revising = false;
 
   String get _stageName => MockProject.stages[_stage].name;
   bool get _atCompose => _stageName == 'compose';
@@ -56,20 +93,73 @@ class _StudioScreenState extends State<StudioScreen> {
   /// The chat entry sits after the four asset families in the rail.
   static const int _chatIndex = 4;
 
-  List<Scene> get _scenes => widget.scenes;
   double get _total => _scenes.last.endSeconds;
+  Scene get _scene => _scenes[_selectedScene];
+
+  /// Playhead follows scene selection by snapping to that scene's in-point.
+  late double _playhead;
 
   @override
   void initState() {
     super.initState();
-    // Prefer the second scene as the initial selection when available.
+    _scenes = [...widget.scenes];
+    _stage = widget.initialStage;
+    _projectName = widget.projectName;
     _selectedScene = _scenes.length > 1 ? 1 : 0;
     _playhead = _scenes[_selectedScene].startSeconds;
+    _conversation = ConversationController(
+      agent: widget.agent,
+      seed: _seedConversation(),
+    );
+    // One-shot status probe so the top bar reflects reality on entry.
+    widget.provider.probe();
+    // Persist an initial record so the project shows up immediately.
+    _save();
+  }
+
+  @override
+  void dispose() {
+    _save(); // capture the latest text edits on the way out
+    _conversation.dispose();
+    super.dispose();
+  }
+
+  /// Persists the current project state (fire-and-forget).
+  void _save() {
+    widget.projectStore.save(
+      StudioProject(
+        id: widget.projectId,
+        name: _projectName,
+        scenes: [..._scenes],
+        stageIndex: _stage,
+        updatedAtIso: DateTime.now().toIso8601String(),
+        renderPath: _renderPath,
+        renderSeconds: _renderSeconds,
+        renderBytes: _renderBytes,
+      ),
+    );
+  }
+
+  /// Seeds the conversation from the home brief when present, so the chat
+  /// continues the same thread instead of starting blank.
+  List<ChatMessage> _seedConversation() {
+    final brief = widget.brief?.trim();
+    if (brief == null || brief.isEmpty) return [...MockProject.conversation];
+    return [
+      ChatMessage(role: ChatRole.user, text: brief),
+      ChatMessage(
+        role: ChatRole.agent,
+        text:
+            'Locked the brief. I split it into ${_scenes.length} scenes — '
+            'select any in the timeline to edit it, then approve to advance.',
+        artifact: 'scene_plan · ${_scenes.length} scenes · '
+            '${_total.toStringAsFixed(0)}s',
+      ),
+    ];
   }
 
   void _onRailSelect(int index) {
     setState(() {
-      // Tapping the active rail item toggles the panel; otherwise switch to it.
       if (index == _railIndex) {
         _panelOpen = !_panelOpen;
       } else {
@@ -78,11 +168,6 @@ class _StudioScreenState extends State<StudioScreen> {
       }
     });
   }
-
-  Scene get _scene => _scenes[_selectedScene];
-
-  /// Playhead follows scene selection by snapping to that scene's in-point.
-  late double _playhead;
 
   void _selectScene(int index) {
     setState(() {
@@ -94,7 +179,6 @@ class _StudioScreenState extends State<StudioScreen> {
   void _scrub(double seconds) {
     setState(() {
       _playhead = seconds;
-      // Keep the selected scene in sync with where the playhead lands.
       for (var i = 0; i < _scenes.length; i++) {
         final s = _scenes[i];
         if (seconds >= s.startSeconds && seconds < s.endSeconds) {
@@ -105,15 +189,194 @@ class _StudioScreenState extends State<StudioScreen> {
     });
   }
 
+  // --- Editing with undo/redo -------------------------------------------------
+
+  void _pushHistory() {
+    _undo.add([..._scenes]);
+    _redo.clear();
+  }
+
+  /// Recomputes every scene's start/end from its duration so the timeline stays
+  /// contiguous after an insert, delete, reorder, or duration change.
+  void _reflowInPlace() {
+    var cursor = 0.0;
+    for (var i = 0; i < _scenes.length; i++) {
+      final d = _scenes[i].durationSeconds;
+      _scenes[i] = _scenes[i].copyWith(
+        startSeconds: cursor,
+        endSeconds: cursor + d,
+      );
+      cursor += d;
+    }
+  }
+
+  /// Replaces the selected scene (headline/subtitle/accent edits).
+  void _updateScene(Scene updated) {
+    setState(() {
+      _pushHistory();
+      _scenes[_selectedScene] = updated;
+    });
+    _save();
+  }
+
+  /// Sets the selected scene's duration and re-flows the timeline.
+  void _setDuration(double seconds) {
+    setState(() {
+      _pushHistory();
+      _scenes[_selectedScene] = _scenes[_selectedScene].copyWith(
+        endSeconds: _scenes[_selectedScene].startSeconds + seconds,
+      );
+      _reflowInPlace();
+      _playhead = _scenes[_selectedScene].startSeconds;
+    });
+    _save();
+  }
+
+  /// Inserts a fresh scene after the selection and selects it.
+  void _addScene() {
+    setState(() {
+      _pushHistory();
+      final at = _selectedScene + 1;
+      _scenes.insert(
+        at,
+        Scene(
+          id: 'scene_${DateTime.now().microsecondsSinceEpoch}',
+          type: 'text_card',
+          title: 'New scene',
+          startSeconds: 0,
+          endSeconds: 4,
+          accent: AppColors.accentCyan,
+          headline: 'New headline',
+          subtitle: '',
+        ),
+      );
+      _reflowInPlace();
+      _selectedScene = at;
+      _playhead = _scenes[at].startSeconds;
+    });
+    _save();
+  }
+
+  /// Removes the selected scene (keeps at least one).
+  void _deleteScene() {
+    if (_scenes.length <= 1) return;
+    setState(() {
+      _pushHistory();
+      _scenes.removeAt(_selectedScene);
+      _reflowInPlace();
+      _selectedScene = _selectedScene.clamp(0, _scenes.length - 1);
+      _playhead = _scenes[_selectedScene].startSeconds;
+    });
+    _save();
+  }
+
+  /// Moves the selected scene one slot left (-1) or right (+1).
+  void _moveScene(int delta) {
+    final to = _selectedScene + delta;
+    if (to < 0 || to >= _scenes.length) return;
+    setState(() {
+      _pushHistory();
+      final s = _scenes.removeAt(_selectedScene);
+      _scenes.insert(to, s);
+      _reflowInPlace();
+      _selectedScene = to;
+      _playhead = _scenes[to].startSeconds;
+    });
+    _save();
+  }
+
+  void _undoEdit() {
+    if (_undo.isEmpty) return;
+    setState(() {
+      _redo.add([..._scenes]);
+      _scenes = _undo.removeLast();
+      _selectedScene = _selectedScene.clamp(0, _scenes.length - 1);
+      _playhead = _scenes[_selectedScene].startSeconds;
+    });
+    _save();
+  }
+
+  void _redoEdit() {
+    if (_redo.isEmpty) return;
+    setState(() {
+      _undo.add([..._scenes]);
+      _scenes = _redo.removeLast();
+      _selectedScene = _selectedScene.clamp(0, _scenes.length - 1);
+      _playhead = _scenes[_selectedScene].startSeconds;
+    });
+    _save();
+  }
+
+  /// Asks the agent to revise the selected scene from a one-line instruction.
+  Future<void> _revise() async {
+    final instruction = await _askRevision();
+    if (instruction == null || instruction.trim().isEmpty) return;
+    setState(() => _revising = true);
+    final target = _scene;
+    try {
+      final revised = await widget.agent.reviseScene(target, instruction);
+      if (!mounted) return;
+      _updateScene(revised);
+      _conversation.addAgentLine(
+        'Revised "${target.title}": ${revised.headline}',
+      );
+    } catch (_) {
+      if (!mounted) return;
+      _toast('Could not revise — is the agent (Ollama) running?');
+    } finally {
+      if (mounted) setState(() => _revising = false);
+    }
+  }
+
+  Future<String?> _askRevision() {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text(
+          'Revise with agent',
+          style: TextStyle(color: AppColors.textPrimary, fontSize: 16),
+        ),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: const TextStyle(color: AppColors.textPrimary),
+          onSubmitted: (v) => Navigator.of(ctx).pop(v),
+          decoration: const InputDecoration(
+            hintText: 'e.g. make it punchier, mention the year',
+            hintStyle: TextStyle(color: AppColors.textFaint),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.textMuted),
+            ),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.accentPurple,
+              foregroundColor: AppColors.background,
+            ),
+            child: const Text('Revise'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- Pipeline ---------------------------------------------------------------
+
   /// Approve the current stage. At compose this renders; otherwise it advances
-  /// and asks the agent (via the next stage's skill) what it will do.
+  /// and the agent posts what it produced for the new stage (a visible artifact
+  /// in the chat), not just a toast.
   void _approveStage() {
     if (_atCompose) {
-      showRenderDialog(
-        context,
-        client: widget.render,
-        scenes: _renderPayload(),
-      );
+      _openRender();
       return;
     }
     final current = _stageName;
@@ -122,15 +385,44 @@ class _StudioScreenState extends State<StudioScreen> {
       return;
     }
     setState(() => _stage += 1);
+    _save();
     final next = _stageName;
     _toast('$current approved → entering $next…');
-    // The next stage's skill drives the agent's plan for it (best-effort).
+    _conversation.addAgentLine('$current approved. Working on $next…');
     widget.agent
         .summarizeStage(next)
         .then((line) {
-          if (mounted) _toast('$next · ${line.trim()}');
+          if (mounted) {
+            _conversation.addAgentLine(
+              line.trim(),
+              artifact: '$next · ready for review',
+            );
+          }
         })
-        .catchError((_) {});
+        .catchError((_) {
+          if (mounted) {
+            _conversation.addAgentLine(
+              'Drafted the $next stage.',
+              artifact: '$next · ready for review',
+            );
+          }
+        });
+  }
+
+  void _openRender() {
+    showRenderDialog(
+      context,
+      client: widget.render,
+      provider: widget.provider,
+      scenes: _renderPayload(),
+      projectName: _projectName,
+      onComplete: (result) {
+        _renderPath = result.path;
+        _renderSeconds = result.seconds;
+        _renderBytes = result.bytes;
+        _save();
+      },
+    );
   }
 
   /// Serializes the scene plan for the render provider.
@@ -138,6 +430,8 @@ class _StudioScreenState extends State<StudioScreen> {
     return [
       for (final s in _scenes)
         {
+          'title': s.title,
+          'type': s.type,
           'headline': s.headline,
           'subtitle': s.subtitle,
           'seconds': s.durationSeconds,
@@ -149,8 +443,6 @@ class _StudioScreenState extends State<StudioScreen> {
         },
     ];
   }
-
-  bool _narrating = false;
 
   Future<void> _generateNarration() async {
     if (_narrating) return;
@@ -172,7 +464,8 @@ class _StudioScreenState extends State<StudioScreen> {
       );
     } catch (_) {
       if (!mounted) return;
-      _toast('TTS provider offline — run: python3 backend/provider_server.py');
+      _toast('Voice provider offline — starting it…');
+      await widget.provider.ensureRunning();
     } finally {
       if (mounted) setState(() => _narrating = false);
     }
@@ -201,14 +494,16 @@ class _StudioScreenState extends State<StudioScreen> {
         children: [
           TopBar(
             isOnline: _isOnline,
+            projectName: _projectName,
             onToggleOnline: () => setState(() => _isOnline = !_isOnline),
+            provider: widget.provider,
+            onRetryServices: () async {
+              await widget.provider.ensureRunning();
+              await widget.provider.probe();
+            },
             onHome: widget.onHome,
             onOpenSettings: widget.onOpenSettings,
-            onRender: () => showRenderDialog(
-              context,
-              client: widget.render,
-              scenes: _renderPayload(),
-            ),
+            onRender: _openRender,
           ),
           Expanded(
             child: Row(
@@ -219,7 +514,7 @@ class _StudioScreenState extends State<StudioScreen> {
                     railIndex: _railIndex,
                     chatIndex: _chatIndex,
                     onCollapse: () => setState(() => _panelOpen = false),
-                    agent: widget.agent,
+                    conversation: _conversation,
                   ),
                 Expanded(
                   child: PreviewStage(
@@ -232,10 +527,24 @@ class _StudioScreenState extends State<StudioScreen> {
                 Inspector(
                   scene: _scene,
                   stageName: _stageName,
+                  sceneIndex: _selectedScene,
+                  sceneCount: _scenes.length,
                   approveLabel: _atCompose ? 'Render' : 'Approve & continue',
                   onApprove: _approveStage,
+                  onSceneChanged: _updateScene,
+                  onDurationChanged: _setDuration,
+                  onAddScene: _addScene,
+                  onDeleteScene: _deleteScene,
+                  onMoveLeft: () => _moveScene(-1),
+                  onMoveRight: () => _moveScene(1),
                   onGenerateNarration: _generateNarration,
                   narrating: _narrating,
+                  onRevise: _revise,
+                  revising: _revising,
+                  onUndo: _undoEdit,
+                  onRedo: _redoEdit,
+                  canUndo: _undo.isNotEmpty,
+                  canRedo: _redo.isNotEmpty,
                 ),
               ],
             ),
@@ -277,8 +586,6 @@ class _CapabilityBar extends StatelessWidget {
             color: AppColors.textFaint,
           ),
           const SizedBox(width: 10),
-          // Capability chips scroll horizontally so a narrow window degrades
-          // gracefully instead of overflowing.
           Expanded(
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,

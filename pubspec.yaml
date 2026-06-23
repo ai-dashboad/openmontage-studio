@@ -44,6 +44,9 @@ dependencies:
   # Open the system browser for third-party (OAuth) sign-in.
   url_launcher: ^6.3.0
 
+  # Native "Save a copy…" dialog for exporting a finished render.
+  file_selector: ^1.0.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -69,6 +72,9 @@ flutter:
   # Agent knowledge — the editable skills that drive the pipeline.
   assets:
     - assets/skills/
+    # The local media provider, bundled so the app can auto-start it without
+    # the project tree present (extracted to a temp file at runtime).
+    - backend/provider_server.py
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

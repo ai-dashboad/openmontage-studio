@@ -50,8 +50,17 @@ class _ScenePreview extends StatelessWidget {
   const _ScenePreview({required this.scene});
   final Scene scene;
 
+  double _headlineSize() {
+    if (scene.type == 'stat_card') return 64;
+    if (scene.headline.length > 26) return 30;
+    if (scene.headline.length > 16) return 40;
+    return 48;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isStat = scene.type == 'stat_card';
+    final headlineColor = isStat ? scene.accent : AppColors.textPrimary;
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -72,29 +81,55 @@ class _ScenePreview extends StatelessWidget {
           ),
           Center(
             child: Padding(
-              padding: const EdgeInsets.all(28),
+              padding: const EdgeInsets.symmetric(horizontal: 36),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    scene.headline,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: scene.type == 'stat_card' ? 56 : 30,
-                      fontWeight: FontWeight.w700,
-                      height: 1.1,
+                  // Kicker — the scene title, mirroring the rendered output.
+                  if (scene.title.isNotEmpty)
+                    Text(
+                      scene.title.toUpperCase(),
+                      textAlign: TextAlign.center,
+                      style: AppTheme.mono.copyWith(
+                        color: scene.accent,
+                        fontSize: 12,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+                  // Accent bar, like the rendered headline rule.
+                  Container(
+                    width: 48,
+                    height: 3,
+                    decoration: BoxDecoration(
+                      color: scene.accent,
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  Text(
-                    scene.subtitle,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: AppColors.textMuted,
-                      fontSize: 14,
+                  const SizedBox(height: 16),
+                  if (scene.headline.isNotEmpty)
+                    Text(
+                      scene.headline,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: headlineColor,
+                        fontSize: _headlineSize(),
+                        fontWeight: FontWeight.w700,
+                        height: 1.1,
+                      ),
                     ),
-                  ),
+                  if (scene.subtitle.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      scene.subtitle,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 15,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -103,7 +138,7 @@ class _ScenePreview extends StatelessWidget {
             bottom: 12,
             right: 14,
             child: Text(
-              '1920 × 1080 · Remotion',
+              '1920 × 1080 · live preview',
               style: AppTheme.mono.copyWith(
                 color: AppColors.textFaint,
                 fontSize: 11,

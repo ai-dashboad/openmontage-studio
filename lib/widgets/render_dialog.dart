@@ -1,28 +1,52 @@
+import 'dart:io';
+
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import '../services/provider_manager.dart';
 import '../services/render_client.dart';
 import '../theme/app_theme.dart';
 
 /// Shows the render dialog, which renders a real MP4 via the local provider
-/// (`backend/provider_server.py`) and reports the finished file.
+/// (`backend/provider_server.py`) and reports the finished file. On success it
+/// can be saved to a chosen location or revealed in Finder; if the provider is
+/// down, [provider] is used to start it and retry without a terminal.
 Future<void> showRenderDialog(
   BuildContext context, {
   required RenderClient client,
   required List<Map<String, dynamic>> scenes,
+  ProviderManager? provider,
+  ValueChanged<RenderResult>? onComplete,
+  String projectName = 'video',
 }) {
   return showDialog(
     context: context,
     barrierDismissible: false,
     barrierColor: Colors.black54,
-    builder: (_) => _RenderDialog(client: client, scenes: scenes),
+    builder: (_) => _RenderDialog(
+      client: client,
+      scenes: scenes,
+      provider: provider,
+      onComplete: onComplete,
+      projectName: projectName,
+    ),
   );
 }
 
 enum _Phase { rendering, done, error }
 
 class _RenderDialog extends StatefulWidget {
-  const _RenderDialog({required this.client, required this.scenes});
+  const _RenderDialog({
+    required this.client,
+    required this.scenes,
+    required this.projectName,
+    this.provider,
+    this.onComplete,
+  });
   final RenderClient client;
   final List<Map<String, dynamic>> scenes;
+  final String projectName;
+  final ProviderManager? provider;
+  final ValueChanged<RenderResult>? onComplete;
 
   @override
   State<_RenderDialog> createState() => _RenderDialogState();
@@ -31,6 +55,7 @@ class _RenderDialog extends StatefulWidget {
 class _RenderDialogState extends State<_RenderDialog> {
   _Phase _phase = _Phase.rendering;
   RenderResult? _result;
+  bool _startingProvider = false;
 
   @override
   void initState() {
@@ -39,6 +64,7 @@ class _RenderDialogState extends State<_RenderDialog> {
   }
 
   Future<void> _render() async {
+    setState(() => _phase = _Phase.rendering);
     try {
       final result = await widget.client.render(widget.scenes);
       if (!mounted) return;
@@ -46,11 +72,60 @@ class _RenderDialogState extends State<_RenderDialog> {
         _result = result;
         _phase = _Phase.done;
       });
+      widget.onComplete?.call(result);
     } catch (_) {
       if (!mounted) return;
       setState(() => _phase = _Phase.error);
     }
   }
+
+  /// Starts the media provider, then retries the render.
+  Future<void> _startAndRetry() async {
+    if (widget.provider == null) return;
+    setState(() => _startingProvider = true);
+    await widget.provider!.ensureRunning();
+    if (!mounted) return;
+    setState(() => _startingProvider = false);
+    if (widget.provider!.mediaUp) {
+      await _render();
+    }
+  }
+
+  Future<void> _saveCopy() async {
+    final result = _result;
+    if (result == null) return;
+    final location = await getSaveLocation(
+      suggestedName: '${_safeName(widget.projectName)}.mp4',
+      acceptedTypeGroups: const [
+        XTypeGroup(label: 'MP4 video', extensions: ['mp4']),
+      ],
+    );
+    if (location == null) return;
+    try {
+      await File(result.path).copy(location.path);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: AppColors.surfaceHigh,
+            content: Text(
+              'Saved to ${location.path}',
+              style: const TextStyle(color: AppColors.textPrimary),
+            ),
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not save the file.')),
+        );
+      }
+    }
+  }
+
+  String _safeName(String name) =>
+      name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-');
 
   @override
   Widget build(BuildContext context) {
@@ -61,7 +136,7 @@ class _RenderDialogState extends State<_RenderDialog> {
         side: const BorderSide(color: AppColors.border),
       ),
       child: Container(
-        width: 440,
+        width: 460,
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -146,13 +221,15 @@ class _RenderDialogState extends State<_RenderDialog> {
           ),
         ];
       case _Phase.done:
-        final r = _result!;
-        return [_OutputRow(result: r)];
+        return [_OutputRow(result: _result!)];
       case _Phase.error:
         return [
           Text(
-            'Could not reach the render provider.\n'
-            'Start it with:  python3 backend/provider_server.py',
+            widget.provider != null
+                ? 'The media provider is not running.\n'
+                      'Click "Start & retry" to launch it automatically.'
+                : 'Could not reach the render provider.\n'
+                      'Start it with:  python3 backend/provider_server.py',
             style: AppTheme.mono.copyWith(
               color: AppColors.textMuted,
               fontSize: 12,
@@ -174,17 +251,28 @@ class _RenderDialogState extends State<_RenderDialog> {
             style: TextStyle(color: AppColors.textMuted),
           ),
         ),
-        _Phase.done => Row(
-          mainAxisSize: MainAxisSize.min,
+        _Phase.done => Wrap(
+          spacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            TextButton(
-              onPressed: () => widget.client.open(_result!.path),
-              child: const Text(
-                'Play',
-                style: TextStyle(color: AppColors.accentCyan),
-              ),
+            TextButton.icon(
+              onPressed: () => widget.client.reveal(_result!.path),
+              icon: const Icon(Icons.folder_open, size: 16),
+              label: const Text('Reveal'),
+              style: TextButton.styleFrom(foregroundColor: AppColors.textMuted),
             ),
-            const SizedBox(width: 8),
+            TextButton.icon(
+              onPressed: _saveCopy,
+              icon: const Icon(Icons.download, size: 16),
+              label: const Text('Save a copy'),
+              style: TextButton.styleFrom(foregroundColor: AppColors.accentCyan),
+            ),
+            TextButton.icon(
+              onPressed: () => widget.client.open(_result!.path),
+              icon: const Icon(Icons.play_arrow, size: 16),
+              label: const Text('Play'),
+              style: TextButton.styleFrom(foregroundColor: AppColors.accentCyan),
+            ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(),
               style: FilledButton.styleFrom(
@@ -195,13 +283,38 @@ class _RenderDialogState extends State<_RenderDialog> {
             ),
           ],
         ),
-        _Phase.error => FilledButton(
-          onPressed: () => Navigator.of(context).pop(),
-          style: FilledButton.styleFrom(
-            backgroundColor: AppColors.surfaceHigh,
-            foregroundColor: AppColors.textPrimary,
-          ),
-          child: const Text('Close'),
+        _Phase.error => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text(
+                'Close',
+                style: TextStyle(color: AppColors.textMuted),
+              ),
+            ),
+            if (widget.provider != null) ...[
+              const SizedBox(width: 8),
+              FilledButton.icon(
+                onPressed: _startingProvider ? null : _startAndRetry,
+                icon: _startingProvider
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.background,
+                        ),
+                      )
+                    : const Icon(Icons.play_circle_outline, size: 18),
+                label: Text(_startingProvider ? 'Starting…' : 'Start & retry'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.accentCyan,
+                  foregroundColor: AppColors.background,
+                ),
+              ),
+            ],
+          ],
         ),
       },
     );

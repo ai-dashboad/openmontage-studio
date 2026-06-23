@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/studio_models.dart';
 import '../services/agent_service.dart';
+import '../services/conversation.dart';
 import '../theme/app_theme.dart';
 
 /// The secondary surface between the rail and the preview. It shows either the
@@ -12,14 +13,14 @@ class SidePanel extends StatelessWidget {
     required this.railIndex,
     required this.chatIndex,
     required this.onCollapse,
-    required this.agent,
+    required this.conversation,
   });
 
   /// Selected rail entry: 0..3 are asset families, [chatIndex] is the agent chat.
   final int railIndex;
   final int chatIndex;
   final VoidCallback onCollapse;
-  final AgentService agent;
+  final ConversationController conversation;
 
   static const _familyTitles = ['Images', 'Clips', 'Voice', 'Music'];
 
@@ -43,7 +44,7 @@ class SidePanel extends StatelessWidget {
           ),
           Expanded(
             child: isChat
-                ? _AgentChat(agent: agent)
+                ? _AgentChat(conversation: conversation)
                 : _AssetGallery(family: _familyTitles[railIndex]),
           ),
         ],
@@ -105,64 +106,38 @@ class _PanelHeader extends StatelessWidget {
 }
 
 class _AgentChat extends StatefulWidget {
-  const _AgentChat({required this.agent});
-  final AgentService agent;
+  const _AgentChat({required this.conversation});
+  final ConversationController conversation;
 
   @override
   State<_AgentChat> createState() => _AgentChatState();
 }
 
 class _AgentChatState extends State<_AgentChat> {
-  final List<ChatMessage> _messages = [...MockProject.conversation];
   final ScrollController _scroll = ScrollController();
-  bool _sending = false;
   AgentStatus? _status;
 
   @override
   void initState() {
     super.initState();
+    widget.conversation.addListener(_onConversationChanged);
     _refreshStatus();
   }
 
   @override
   void dispose() {
+    widget.conversation.removeListener(_onConversationChanged);
     _scroll.dispose();
     super.dispose();
   }
 
-  Future<void> _refreshStatus() async {
-    final s = await widget.agent.status();
-    if (mounted) setState(() => _status = s);
+  void _onConversationChanged() {
+    if (mounted) setState(_scrollToEnd);
   }
 
-  Future<void> _send(String text) async {
-    if (text.trim().isEmpty || _sending) return;
-    setState(() {
-      _messages.add(ChatMessage(role: ChatRole.user, text: text.trim()));
-      _sending = true;
-    });
-    _scrollToEnd();
-    try {
-      final reply = await widget.agent.reply(_messages);
-      if (!mounted) return;
-      setState(
-        () => _messages.add(ChatMessage(role: ChatRole.agent, text: reply)),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(
-        () => _messages.add(
-          ChatMessage(
-            role: ChatRole.agent,
-            text:
-                'Could not reach the local agent. Is Ollama running with a model pulled?',
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _sending = false);
-      _scrollToEnd();
-    }
+  Future<void> _refreshStatus() async {
+    final s = await widget.conversation.agent.status();
+    if (mounted) setState(() => _status = s);
   }
 
   void _scrollToEnd() {
@@ -179,6 +154,8 @@ class _AgentChatState extends State<_AgentChat> {
 
   @override
   Widget build(BuildContext context) {
+    final messages = widget.conversation.messages;
+    final sending = widget.conversation.sending;
     return Column(
       children: [
         _StatusBar(status: _status),
@@ -187,12 +164,15 @@ class _AgentChatState extends State<_AgentChat> {
             controller: _scroll,
             padding: const EdgeInsets.all(12),
             children: [
-              for (final m in _messages) _Bubble(message: m),
-              if (_sending) const _Thinking(),
+              for (final m in messages) _Bubble(message: m),
+              if (sending) const _Thinking(),
             ],
           ),
         ),
-        _Composer(enabled: !_sending, onSend: _send),
+        _Composer(
+          enabled: !sending,
+          onSend: (t) => widget.conversation.send(t),
+        ),
       ],
     );
   }
@@ -398,6 +378,7 @@ class _ComposerState extends State<_Composer> {
           children: [
             Expanded(
               child: TextField(
+                key: const Key('agentComposer'),
                 controller: _controller,
                 enabled: widget.enabled,
                 onSubmitted: (_) => _submit(),

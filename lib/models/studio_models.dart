@@ -51,6 +51,51 @@ class Scene {
   final String subtitle;
 
   double get durationSeconds => endSeconds - startSeconds;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'type': type,
+    'title': title,
+    'start': startSeconds,
+    'end': endSeconds,
+    'accent': accent.toARGB32(),
+    'headline': headline,
+    'subtitle': subtitle,
+  };
+
+  static Scene fromJson(Map<String, dynamic> j) => Scene(
+    id: j['id'] as String? ?? 'scene',
+    type: j['type'] as String? ?? 'text_card',
+    title: j['title'] as String? ?? 'Scene',
+    startSeconds: (j['start'] as num?)?.toDouble() ?? 0,
+    endSeconds: (j['end'] as num?)?.toDouble() ?? 4,
+    accent: Color((j['accent'] as num?)?.toInt() ?? 0xFF22D3EE),
+    headline: j['headline'] as String? ?? '',
+    subtitle: j['subtitle'] as String? ?? '',
+  );
+
+  /// Returns a copy with the given fields replaced. Editing the inspector flows
+  /// through this so the preview and timeline update from the same scene value.
+  Scene copyWith({
+    String? type,
+    String? title,
+    double? startSeconds,
+    double? endSeconds,
+    Color? accent,
+    String? headline,
+    String? subtitle,
+  }) {
+    return Scene(
+      id: id,
+      type: type ?? this.type,
+      title: title ?? this.title,
+      startSeconds: startSeconds ?? this.startSeconds,
+      endSeconds: endSeconds ?? this.endSeconds,
+      accent: accent ?? this.accent,
+      headline: headline ?? this.headline,
+      subtitle: subtitle ?? this.subtitle,
+    );
+  }
 }
 
 /// One capability family in the provider menu (the "X of Y configured" rollup).

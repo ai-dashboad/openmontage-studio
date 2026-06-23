@@ -22,3 +22,13 @@ CREATE TABLE IF NOT EXISTS users (
   email_verified    INTEGER NOT NULL DEFAULT 0,
   verified_at       TEXT
 );
+
+-- Short-lived desktop OAuth handshake state. Uses D1 (strongly consistent) so
+-- the app's /exchange poll reliably sees the /callback result. See
+-- migrations/0005_oauth_flow.sql for the rationale.
+CREATE TABLE IF NOT EXISTS oauth_flow (
+  state      TEXT PRIMARY KEY,
+  provider   TEXT NOT NULL,
+  token      TEXT,
+  created_at TEXT NOT NULL
+);
