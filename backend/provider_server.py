@@ -92,6 +92,7 @@ def _render(scenes: list[dict], voice: str) -> dict:
     work = OUT_DIR / "render"
     work.mkdir(exist_ok=True)
     clip_paths: list[Path] = []
+    durations: list[float] = []
     total = 0.0
 
     for i, sc in enumerate(scenes):
@@ -158,6 +159,8 @@ def _render(scenes: list[dict], voice: str) -> dict:
         if i == len(scenes) - 1:
             filters.append(f"fade=t=out:st={max(0.0, duration - 0.6):.2f}:d=0.6")
 
+        # Every clip carries an audio track (real narration or silence) so the
+        # cross-fade assembly can treat all clips uniformly.
         clip = work / f"clip_{i}.mp4"
         cmd = [
             "ffmpeg",
@@ -168,15 +171,28 @@ def _render(scenes: list[dict], voice: str) -> dict:
             "-i",
             f"color=c={BG}:s={W}x{H}:rate={FPS}:duration={duration}",
         ]
-        maps = ["-map", "0:v:0"]
         if narration:
             cmd += ["-i", str(narr_path)]
-            maps += ["-map", "1:a:0"]
+        else:
+            cmd += [
+                "-f",
+                "lavfi",
+                "-i",
+                "anullsrc=channel_layout=stereo:sample_rate=44100",
+            ]
         if filters:
             cmd += ["-vf", ",".join(filters)]
-        cmd += maps + [
+        cmd += [
+            "-map",
+            "0:v:0",
+            "-map",
+            "1:a:0",
             "-c:v",
             "libx264",
+            "-crf",
+            "20",
+            "-preset",
+            "medium",
             "-pix_fmt",
             "yuv420p",
             "-c:a",
@@ -185,39 +201,93 @@ def _render(scenes: list[dict], voice: str) -> dict:
             f"{duration}",
             str(clip),
         ]
-        subprocess.run(cmd, check=True, capture_output=True, timeout=120)
+        subprocess.run(cmd, check=True, capture_output=True, timeout=180)
         clip_paths.append(clip)
+        durations.append(duration)
 
-    list_file = work / "concat.txt"
-    list_file.write_text(
-        "".join(f"file '{c}'\n" for c in clip_paths), encoding="utf-8"
-    )
-    final = work / "render.mp4"
-    subprocess.run(
-        [
-            "ffmpeg",
-            "-hide_banner",
-            "-y",
-            "-f",
-            "concat",
-            "-safe",
-            "0",
-            "-i",
-            str(list_file),
-            "-c",
-            "copy",
-            str(final),
-        ],
-        check=True,
-        capture_output=True,
-        timeout=120,
-    )
+    final, final_seconds = _assemble(clip_paths, durations, work)
     return {
         "path": str(final),
         "scenes": len(clip_paths),
-        "seconds": round(total, 2),
+        "seconds": round(final_seconds, 2),
         "bytes": final.stat().st_size,
     }
+
+
+def _assemble(
+    clip_paths: list[Path], durations: list[float], work: Path
+) -> tuple[Path, float]:
+    """Joins per-scene clips with cross-fade transitions (video + audio). Falls
+    back to a plain concat if the filter graph fails for any reason, so a render
+    never breaks on the transition step."""
+    final = work / "render.mp4"
+    n = len(clip_paths)
+    if n == 1:
+        subprocess.run(
+            ["ffmpeg", "-hide_banner", "-y", "-i", str(clip_paths[0]),
+             "-c", "copy", str(final)],
+            check=True, capture_output=True, timeout=120,
+        )
+        return final, durations[0]
+
+    # Transition length: short enough to fit the briefest clip.
+    fade = max(0.1, min(0.5, min(durations) / 2 - 0.05))
+    inputs: list[str] = []
+    for c in clip_paths:
+        inputs += ["-i", str(c)]
+
+    filt: list[str] = []
+    prev_v, prev_a = "0:v", "0:a"
+    merged = durations[0]
+    for i in range(1, n):
+        offset = merged - fade
+        vout, aout = f"v{i}", f"a{i}"
+        filt.append(
+            f"[{prev_v}][{i}:v]xfade=transition=fade:"
+            f"duration={fade:.3f}:offset={offset:.3f}[{vout}]"
+        )
+        filt.append(f"[{prev_a}][{i}:a]acrossfade=d={fade:.3f}[{aout}]")
+        prev_v, prev_a = vout, aout
+        merged = merged + durations[i] - fade
+
+    cmd = (
+        ["ffmpeg", "-hide_banner", "-y"]
+        + inputs
+        + [
+            "-filter_complex",
+            ";".join(filt),
+            "-map",
+            f"[{prev_v}]",
+            "-map",
+            f"[{prev_a}]",
+            "-c:v",
+            "libx264",
+            "-crf",
+            "20",
+            "-preset",
+            "medium",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            str(final),
+        ]
+    )
+    try:
+        subprocess.run(cmd, check=True, capture_output=True, timeout=300)
+        return final, merged
+    except subprocess.CalledProcessError:
+        # Fallback: hard-cut concat so a render always completes.
+        list_file = work / "concat.txt"
+        list_file.write_text(
+            "".join(f"file '{c}'\n" for c in clip_paths), encoding="utf-8"
+        )
+        subprocess.run(
+            ["ffmpeg", "-hide_banner", "-y", "-f", "concat", "-safe", "0",
+             "-i", str(list_file), "-c", "copy", str(final)],
+            check=True, capture_output=True, timeout=120,
+        )
+        return final, sum(durations)
 
 
 class Handler(BaseHTTPRequestHandler):

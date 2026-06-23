@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import '../models/studio_models.dart';
 import '../services/agent_service.dart';
 import '../services/conversation.dart';
@@ -61,11 +62,17 @@ class StudioScreen extends StatefulWidget {
   State<StudioScreen> createState() => _StudioScreenState();
 }
 
-class _StudioScreenState extends State<StudioScreen> {
+class _StudioScreenState extends State<StudioScreen>
+    with SingleTickerProviderStateMixin {
   int _selectedScene = 0;
   int _railIndex = 4; // Start on the agent chat.
   bool _isOnline = true;
   bool _panelOpen = true;
+
+  // Preview playback: a ticker advances the playhead in real time.
+  late final Ticker _ticker;
+  bool _playing = false;
+  Duration _lastTick = Duration.zero;
 
   /// Current pipeline stage (index into MockProject.stages). The studio opens on
   /// scene_plan; approving walks it forward to compose.
@@ -107,6 +114,7 @@ class _StudioScreenState extends State<StudioScreen> {
     _projectName = widget.projectName;
     _selectedScene = _scenes.length > 1 ? 1 : 0;
     _playhead = _scenes[_selectedScene].startSeconds;
+    _ticker = createTicker(_onTick);
     _conversation = ConversationController(
       agent: widget.agent,
       seed: _seedConversation(),
@@ -119,9 +127,53 @@ class _StudioScreenState extends State<StudioScreen> {
 
   @override
   void dispose() {
+    _ticker.dispose();
     _save(); // capture the latest text edits on the way out
     _conversation.dispose();
     super.dispose();
+  }
+
+  // --- Preview playback -------------------------------------------------------
+
+  void _togglePlay() {
+    if (_playing) {
+      _stopPlayback();
+      return;
+    }
+    if (_playhead >= _total) _playhead = 0; // restart from the top
+    _lastTick = Duration.zero;
+    _ticker.start();
+    setState(() => _playing = true);
+  }
+
+  void _stopPlayback() {
+    if (_ticker.isActive) _ticker.stop();
+    _lastTick = Duration.zero;
+    if (mounted) setState(() => _playing = false);
+  }
+
+  void _onTick(Duration elapsed) {
+    final dt = (elapsed - _lastTick).inMicroseconds / 1e6;
+    _lastTick = elapsed;
+    setState(() {
+      _playhead += dt;
+      if (_playhead >= _total) {
+        _playhead = _total;
+        _stopPlayback();
+      }
+      _syncSelectionToPlayhead();
+    });
+  }
+
+  /// Keeps the selected scene aligned with where the playhead lands.
+  void _syncSelectionToPlayhead() {
+    for (var i = 0; i < _scenes.length; i++) {
+      final s = _scenes[i];
+      if (_playhead >= s.startSeconds && _playhead < s.endSeconds) {
+        _selectedScene = i;
+        return;
+      }
+    }
   }
 
   /// Persists the current project state (fire-and-forget).
@@ -170,6 +222,7 @@ class _StudioScreenState extends State<StudioScreen> {
   }
 
   void _selectScene(int index) {
+    _stopPlayback();
     setState(() {
       _selectedScene = index;
       _playhead = _scenes[index].startSeconds;
@@ -177,15 +230,10 @@ class _StudioScreenState extends State<StudioScreen> {
   }
 
   void _scrub(double seconds) {
+    _stopPlayback();
     setState(() {
       _playhead = seconds;
-      for (var i = 0; i < _scenes.length; i++) {
-        final s = _scenes[i];
-        if (seconds >= s.startSeconds && seconds < s.endSeconds) {
-          _selectedScene = i;
-          break;
-        }
-      }
+      _syncSelectionToPlayhead();
     });
   }
 
@@ -522,6 +570,8 @@ class _StudioScreenState extends State<StudioScreen> {
                     playheadSeconds: _playhead,
                     totalSeconds: _total,
                     onScrub: _scrub,
+                    isPlaying: _playing,
+                    onTogglePlay: _togglePlay,
                   ),
                 ),
                 Inspector(

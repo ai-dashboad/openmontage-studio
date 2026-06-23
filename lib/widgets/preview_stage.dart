@@ -12,12 +12,16 @@ class PreviewStage extends StatelessWidget {
     required this.playheadSeconds,
     required this.totalSeconds,
     required this.onScrub,
+    this.isPlaying = false,
+    this.onTogglePlay,
   });
 
   final Scene scene;
   final double playheadSeconds;
   final double totalSeconds;
   final ValueChanged<double> onScrub;
+  final bool isPlaying;
+  final VoidCallback? onTogglePlay;
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +34,16 @@ class PreviewStage extends StatelessWidget {
             child: Center(
               child: AspectRatio(
                 aspectRatio: 16 / 9,
-                child: _ScenePreview(scene: scene),
+                // Cross-fade between scenes as the playhead moves, so playback
+                // reads as a sequence rather than a static card.
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 350),
+                  switchInCurve: Curves.easeOut,
+                  child: _ScenePreview(
+                    key: ValueKey(scene.id),
+                    scene: scene,
+                  ),
+                ),
               ),
             ),
           ),
@@ -39,6 +52,8 @@ class PreviewStage extends StatelessWidget {
             playheadSeconds: playheadSeconds,
             totalSeconds: totalSeconds,
             onScrub: onScrub,
+            isPlaying: isPlaying,
+            onTogglePlay: onTogglePlay,
           ),
         ],
       ),
@@ -47,7 +62,7 @@ class PreviewStage extends StatelessWidget {
 }
 
 class _ScenePreview extends StatelessWidget {
-  const _ScenePreview({required this.scene});
+  const _ScenePreview({super.key, required this.scene});
   final Scene scene;
 
   double _headlineSize() {
@@ -177,10 +192,14 @@ class _Transport extends StatelessWidget {
     required this.playheadSeconds,
     required this.totalSeconds,
     required this.onScrub,
+    this.isPlaying = false,
+    this.onTogglePlay,
   });
   final double playheadSeconds;
   final double totalSeconds;
   final ValueChanged<double> onScrub;
+  final bool isPlaying;
+  final VoidCallback? onTogglePlay;
 
   String _fmt(double s) {
     final m = (s ~/ 60).toString().padLeft(1, '0');
@@ -192,10 +211,15 @@ class _Transport extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const Icon(
-          Icons.play_circle_fill,
-          color: AppColors.accentCyan,
-          size: 28,
+        IconButton(
+          onPressed: onTogglePlay,
+          tooltip: isPlaying ? 'Pause' : 'Play',
+          visualDensity: VisualDensity.compact,
+          icon: Icon(
+            isPlaying ? Icons.pause_circle_filled : Icons.play_circle_fill,
+            color: AppColors.accentCyan,
+            size: 28,
+          ),
         ),
         const SizedBox(width: 12),
         Text(
