@@ -163,6 +163,58 @@ class AuthClient {
     return Account.fromJson(body['user'] as Map<String, dynamic>);
   }
 
+  /// Requests a password-reset email. Always succeeds (never reveals whether
+  /// the address has an account).
+  Future<void> forgotPassword(String email) async {
+    try {
+      await _http
+          .post(
+            Uri.parse('$baseUrl/auth/forgot'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'email': email}),
+          )
+          .timeout(const Duration(seconds: 15));
+    } catch (_) {
+      // Swallow — we don't surface success/failure to avoid account probing.
+    }
+  }
+
+  /// Changes the password for the signed-in user. [current] may be empty for
+  /// accounts created via OAuth that have no password yet.
+  Future<void> changePassword(
+    String token, {
+    required String current,
+    required String next,
+  }) async {
+    final res = await _http
+        .post(
+          Uri.parse('$baseUrl/auth/password'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({'current': current, 'new': next}),
+        )
+        .timeout(const Duration(seconds: 15));
+    if (res.statusCode != 200) {
+      final json = jsonDecode(res.body) as Map<String, dynamic>;
+      throw AuthException((json['error'] as String?) ?? 'could not change');
+    }
+  }
+
+  /// Permanently deletes the signed-in user's account.
+  Future<void> deleteAccount(String token) async {
+    final res = await _http
+        .post(
+          Uri.parse('$baseUrl/auth/delete'),
+          headers: {'Authorization': 'Bearer $token'},
+        )
+        .timeout(const Duration(seconds: 15));
+    if (res.statusCode != 200) {
+      throw const AuthException('could not delete account');
+    }
+  }
+
   /// Asks the server to re-send the verification email for this session.
   Future<void> resendVerification(String token) async {
     final res = await _http

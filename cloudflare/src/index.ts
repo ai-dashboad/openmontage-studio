@@ -404,6 +404,116 @@ async function resendVerification(request: Request, env: Env): Promise<Response>
   return json({ ok: true });
 }
 
+// ---- password reset, change, account deletion ----
+
+const RESET_BASE = 'https://openmontage-auth.272876047.workers.dev/auth/reset';
+
+// Always returns ok (never leaks whether the email exists). Emails a reset link
+// if the account exists.
+async function forgotPassword(request: Request, env: Env): Promise<Response> {
+  if (!(await rateLimit(env, `forgot:${clientIp(request)}`, 5, 3600))) {
+    return json({ error: 'too many requests, try again later' }, 429);
+  }
+  const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+  const email = String(body.email ?? '').trim().toLowerCase();
+  const row = await env.DB.prepare('SELECT id FROM users WHERE email = ?')
+    .bind(email)
+    .first<{ id: string }>();
+  if (row) {
+    const token = toHex(crypto.getRandomValues(new Uint8Array(24)));
+    await env.SESSIONS.put(`reset:${token}`, row.id, { expirationTtl: 3600 });
+    const link = `${RESET_BASE}?token=${token}`;
+    await sendEmail(
+      env,
+      email,
+      'Reset your OpenMontage Studio password',
+      `<div style="font-family:system-ui;max-width:480px;margin:auto">
+         <h2>Reset your password</h2>
+         <p>Click below to choose a new password. This link expires in 1 hour.</p>
+         <p><a href="${link}" style="display:inline-block;background:#22D3EE;color:#0F172A;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">Reset password</a></p>
+         <p style="color:#64748B;font-size:13px">If you didn't request this, ignore this email.</p>
+       </div>`,
+    );
+  }
+  return json({ ok: true });
+}
+
+// Served when the reset link is clicked: a small form that posts the new password.
+function resetPage(token: string, message?: string): Response {
+  const note = message
+    ? `<p style="color:#F59E0B">${message}</p>`
+    : '';
+  return new Response(
+    `<!doctype html><meta charset="utf-8"><body style="font-family:system-ui;background:#0F172A;color:#E2E8F0;display:grid;place-items:center;height:100vh;margin:0">
+       <form method="post" action="/auth/reset" style="background:#1E293B;border:1px solid #2A3A52;border-radius:14px;padding:28px;width:340px">
+         <h2 style="margin:0 0 12px">Choose a new password</h2>
+         ${note}
+         <input type="hidden" name="token" value="${token}">
+         <input type="password" name="password" placeholder="New password (min 8 chars)" required minlength="8"
+           style="width:100%;box-sizing:border-box;padding:12px;border-radius:8px;border:1px solid #2A3A52;background:#0F172A;color:#E2E8F0;margin-bottom:12px">
+         <button type="submit" style="width:100%;padding:12px;border:0;border-radius:8px;background:#22D3EE;color:#0F172A;font-weight:600;cursor:pointer">Update password</button>
+       </form>
+     </body>`,
+    { headers: { 'Content-Type': 'text/html; charset=utf-8' } },
+  );
+}
+
+async function resetPassword(request: Request, env: Env): Promise<Response> {
+  let token: string | null = null;
+  let password: string | null = null;
+  if ((request.headers.get('Content-Type') ?? '').includes('application/json')) {
+    const b = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+    token = (b.token as string) ?? null;
+    password = (b.password as string) ?? null;
+  } else {
+    const f = await request.formData();
+    token = (f.get('token') as string) ?? null;
+    password = (f.get('password') as string) ?? null;
+  }
+  if (!token) return htmlPage('Invalid reset link');
+  if (!password || password.length < 8) {
+    return resetPage(token, 'Password must be at least 8 characters.');
+  }
+  const userId = await env.SESSIONS.get(`reset:${token}`);
+  if (!userId) return htmlPage('This reset link is invalid or has expired');
+  await env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+    .bind(await hashPassword(password), userId)
+    .run();
+  await env.SESSIONS.delete(`reset:${token}`);
+  return htmlPage('Password updated ✓ — you can sign in now');
+}
+
+// Change password for the signed-in user. OAuth-only accounts (no password yet)
+// can set one without providing a current password.
+async function changePassword(request: Request, env: Env): Promise<Response> {
+  const userId = await userIdFromSession(request, env);
+  if (!userId) return json({ error: 'invalid session' }, 401);
+  const b = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+  const current = String(b.current ?? '');
+  const next = String(b.new ?? '');
+  if (next.length < 8) {
+    return json({ error: 'new password must be at least 8 characters' }, 400);
+  }
+  const row = await loadUser(env, userId);
+  if (!row) return json({ error: 'user not found' }, 404);
+  if (row.password_hash && !(await verifyPassword(current, row.password_hash))) {
+    return json({ error: 'current password is incorrect' }, 401);
+  }
+  await env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+    .bind(await hashPassword(next), userId)
+    .run();
+  return json({ ok: true });
+}
+
+async function deleteAccount(request: Request, env: Env): Promise<Response> {
+  const token = bearer(request);
+  const userId = await userIdFromSession(request, env);
+  if (!userId) return json({ error: 'invalid session' }, 401);
+  await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(userId).run();
+  if (token) await env.SESSIONS.delete(`sess:${token}`);
+  return json({ ok: true });
+}
+
 // ---- third-party (OAuth) sign-in: Google + GitHub ----
 //
 // Desktop flow: the app opens /auth/oauth/<provider>/start?state=S, the provider
@@ -639,6 +749,22 @@ export default {
       }
       if (method === 'POST' && pathname === '/auth/verify/resend') {
         return await resendVerification(request, env);
+      }
+      if (method === 'POST' && pathname === '/auth/forgot') {
+        return await forgotPassword(request, env);
+      }
+      if (method === 'GET' && pathname === '/auth/reset') {
+        const t = new URL(request.url).searchParams.get('token');
+        return t ? resetPage(t) : htmlPage('Invalid reset link');
+      }
+      if (method === 'POST' && pathname === '/auth/reset') {
+        return await resetPassword(request, env);
+      }
+      if (method === 'POST' && pathname === '/auth/password') {
+        return await changePassword(request, env);
+      }
+      if (method === 'POST' && pathname === '/auth/delete') {
+        return await deleteAccount(request, env);
       }
       // OAuth: /auth/oauth/<provider>/start|callback and /auth/oauth/exchange
       const oauth = pathname.match(/^\/auth\/oauth\/([a-z]+)\/(start|callback)$/);

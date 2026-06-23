@@ -43,16 +43,12 @@ class OpenMontageStudioApp extends StatelessWidget {
         authClient: auth,
         sessionStore: sessionStore ?? SessionStore(),
         initialAccount: initialAccount,
-        appBuilder: (account, onLogout, onSetConsent, onResendVerification) =>
-            AppShell(
-              agentService: agentService,
-              ttsClient: ttsClient,
-              renderClient: renderClient,
-              account: account,
-              onLogout: onLogout,
-              onSetConsent: onSetConsent,
-              onResendVerification: onResendVerification,
-            ),
+        appBuilder: (session) => AppShell(
+          agentService: agentService,
+          ttsClient: ttsClient,
+          renderClient: renderClient,
+          session: session,
+        ),
       ),
     );
   }

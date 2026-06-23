@@ -3,6 +3,7 @@ import '../screens/auth_screen.dart';
 import '../services/auth_client.dart';
 import '../services/session_store.dart';
 import '../theme/app_theme.dart';
+import 'account_session.dart';
 
 /// Gates the app behind authentication. On launch it restores a saved session
 /// (token -> /auth/me); if there's none or it's invalid, it shows [AuthScreen].
@@ -19,13 +20,7 @@ class AuthGate extends StatefulWidget {
 
   final AuthClient authClient;
   final SessionStore sessionStore;
-  final Widget Function(
-    Account account,
-    VoidCallback onLogout,
-    Future<void> Function(bool) onSetConsent,
-    Future<void> Function() onResendVerification,
-  )
-  appBuilder;
+  final Widget Function(AccountSession session) appBuilder;
 
   /// When provided, the gate starts authenticated (used by tests).
   final Account? initialAccount;
@@ -106,6 +101,23 @@ class _AuthGateState extends State<AuthGate> {
     if (token != null) await widget.authClient.resendVerification(token);
   }
 
+  Future<void> _changePassword(String current, String next) async {
+    final token = _token;
+    if (token == null) return;
+    await widget.authClient.changePassword(token, current: current, next: next);
+  }
+
+  Future<void> _deleteAccount() async {
+    final token = _token;
+    if (token != null) await widget.authClient.deleteAccount(token);
+    await widget.sessionStore.clear();
+    if (!mounted) return;
+    setState(() {
+      _token = null;
+      _account = null;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -120,10 +132,14 @@ class _AuthGateState extends State<AuthGate> {
       return AuthScreen(authClient: widget.authClient, onAuthed: _onAuthed);
     }
     return widget.appBuilder(
-      _account!,
-      _logout,
-      _setConsent,
-      _resendVerification,
+      AccountSession(
+        account: _account!,
+        logout: _logout,
+        setConsent: _setConsent,
+        resendVerification: _resendVerification,
+        changePassword: _changePassword,
+        deleteAccount: _deleteAccount,
+      ),
     );
   }
 }

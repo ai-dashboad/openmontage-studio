@@ -1,26 +1,17 @@
 import 'package:flutter/material.dart';
+import '../auth/account_session.dart';
 import '../models/catalog.dart';
-import '../services/auth_client.dart';
+import '../services/auth_client.dart' show AuthException;
 import '../theme/app_theme.dart';
 
 /// Providers settings: cloud APIs and local engines, grouped by capability. The
 /// cloud/local split is what makes online vs offline "just which endpoint."
 /// Also hosts the account section (sign out + marketing opt-out).
 class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({
-    super.key,
-    required this.onBack,
-    this.account,
-    this.onLogout,
-    this.onSetConsent,
-    this.onResendVerification,
-  });
+  const SettingsScreen({super.key, required this.onBack, this.session});
 
   final VoidCallback onBack;
-  final Account? account;
-  final VoidCallback? onLogout;
-  final Future<void> Function(bool)? onSetConsent;
-  final Future<void> Function()? onResendVerification;
+  final AccountSession? session;
 
   @override
   Widget build(BuildContext context) {
@@ -39,13 +30,8 @@ class SettingsScreen extends StatelessWidget {
             children: [
               _Header(onBack: onBack),
               const SizedBox(height: 24),
-              if (account != null) ...[
-                _AccountCard(
-                  account: account!,
-                  onLogout: onLogout,
-                  onSetConsent: onSetConsent,
-                  onResendVerification: onResendVerification,
-                ),
+              if (session != null) ...[
+                _AccountCard(session: session!),
                 const SizedBox(height: 20),
               ],
               for (final entry in byCapability.entries) ...[
@@ -66,32 +52,22 @@ class SettingsScreen extends StatelessWidget {
 /// Account card: identity, sign out, and a marketing-email toggle that writes
 /// the consent change back to the server (the opt-out path).
 class _AccountCard extends StatefulWidget {
-  const _AccountCard({
-    required this.account,
-    this.onLogout,
-    this.onSetConsent,
-    this.onResendVerification,
-  });
-  final Account account;
-  final VoidCallback? onLogout;
-  final Future<void> Function(bool)? onSetConsent;
-  final Future<void> Function()? onResendVerification;
+  const _AccountCard({required this.session});
+  final AccountSession session;
 
   @override
   State<_AccountCard> createState() => _AccountCardState();
 }
 
 class _AccountCardState extends State<_AccountCard> {
-  late bool _consent = widget.account.marketingConsent;
+  late bool _consent = widget.session.account.marketingConsent;
   bool _saving = false;
   String? _verifyMsg;
 
   Future<void> _resend() async {
-    final resend = widget.onResendVerification;
-    if (resend == null) return;
     setState(() => _verifyMsg = 'Sending…');
     try {
-      await resend();
+      await widget.session.resendVerification();
       if (mounted) setState(() => _verifyMsg = 'Verification email sent.');
     } catch (_) {
       if (mounted) setState(() => _verifyMsg = 'Could not send — try later.');
@@ -99,22 +75,60 @@ class _AccountCardState extends State<_AccountCard> {
   }
 
   Future<void> _setConsent(bool value) async {
-    final update = widget.onSetConsent;
-    if (update == null || _saving) {
-      setState(() => _consent = value);
-      return;
-    }
+    if (_saving) return;
     setState(() {
       _consent = value;
       _saving = true;
     });
     try {
-      await update(value); // persisted server-side by the auth gate
+      await widget.session.setConsent(value);
     } catch (_) {
       if (mounted) setState(() => _consent = !value); // revert on failure
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Future<void> _changePassword() async {
+    await showDialog<void>(
+      context: context,
+      builder: (_) => _ChangePasswordDialog(session: widget.session),
+    );
+  }
+
+  Future<void> _deleteAccount() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text(
+          'Delete account?',
+          style: TextStyle(color: AppColors.textPrimary),
+        ),
+        content: const Text(
+          'This permanently removes your account and data. This cannot be undone.',
+          style: TextStyle(color: AppColors.textMuted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.textMuted),
+            ),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.accentAmber,
+              foregroundColor: AppColors.background,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) await widget.session.deleteAccount();
   }
 
   Widget _verifyBanner() {
@@ -154,7 +168,7 @@ class _AccountCardState extends State<_AccountCard> {
 
   @override
   Widget build(BuildContext context) {
-    final a = widget.account;
+    final a = widget.session.account;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -196,7 +210,7 @@ class _AccountCardState extends State<_AccountCard> {
                 ),
               ),
               OutlinedButton.icon(
-                onPressed: widget.onLogout,
+                onPressed: widget.session.logout,
                 icon: const Icon(Icons.logout, size: 15),
                 label: const Text('Sign out'),
                 style: OutlinedButton.styleFrom(
@@ -206,7 +220,7 @@ class _AccountCardState extends State<_AccountCard> {
               ),
             ],
           ),
-          if (!widget.account.emailVerified) _verifyBanner(),
+          if (!a.emailVerified) _verifyBanner(),
           const Divider(height: 24, color: AppColors.border),
           Row(
             children: [
@@ -227,8 +241,140 @@ class _AccountCardState extends State<_AccountCard> {
               ),
             ],
           ),
+          const Divider(height: 24, color: AppColors.border),
+          Row(
+            children: [
+              TextButton.icon(
+                onPressed: _changePassword,
+                icon: const Icon(Icons.password, size: 15),
+                label: const Text('Change password'),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.textMuted,
+                ),
+              ),
+              const Spacer(),
+              TextButton.icon(
+                onPressed: _deleteAccount,
+                icon: const Icon(Icons.delete_outline, size: 15),
+                label: const Text('Delete account'),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.accentAmber,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
+    );
+  }
+}
+
+/// Small dialog to change (or, for OAuth-only accounts, set) the password.
+class _ChangePasswordDialog extends StatefulWidget {
+  const _ChangePasswordDialog({required this.session});
+  final AccountSession session;
+
+  @override
+  State<_ChangePasswordDialog> createState() => _ChangePasswordDialogState();
+}
+
+class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
+  final _current = TextEditingController();
+  final _next = TextEditingController();
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _current.dispose();
+    _next.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_busy) return;
+    if (_next.text.length < 8) {
+      setState(() => _error = 'New password must be at least 8 characters.');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await widget.session.changePassword(_current.text, _next.text);
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _error = e is AuthException
+              ? e.message
+              : 'Could not change password.';
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: AppColors.surface,
+      title: const Text(
+        'Change password',
+        style: TextStyle(color: AppColors.textPrimary),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _current,
+            obscureText: true,
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: const InputDecoration(
+              hintText: 'Current password (leave blank if none)',
+              hintStyle: TextStyle(color: AppColors.textFaint, fontSize: 13),
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _next,
+            obscureText: true,
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: const InputDecoration(
+              hintText: 'New password (min 8 chars)',
+              hintStyle: TextStyle(color: AppColors.textFaint, fontSize: 13),
+            ),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _error!,
+              style: const TextStyle(
+                color: AppColors.accentAmber,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _busy ? null : () => Navigator.pop(context),
+          child: const Text(
+            'Cancel',
+            style: TextStyle(color: AppColors.textMuted),
+          ),
+        ),
+        FilledButton(
+          onPressed: _busy ? null : _submit,
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.accentCyan,
+            foregroundColor: AppColors.background,
+          ),
+          child: const Text('Update'),
+        ),
+      ],
     );
   }
 }

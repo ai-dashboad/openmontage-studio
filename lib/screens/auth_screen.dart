@@ -96,6 +96,27 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
+  Future<void> _forgot() async {
+    final email = _email.text.trim();
+    if (email.isEmpty) {
+      setState(() => _error = 'Enter your email, then tap Forgot password.');
+      return;
+    }
+    await widget.authClient.forgotPassword(email);
+    if (!mounted) return;
+    setState(() => _error = null);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: AppColors.surfaceHigh,
+        content: Text(
+          'If that email has an account, a reset link is on its way.',
+          style: TextStyle(color: AppColors.textPrimary),
+        ),
+      ),
+    );
+  }
+
   /// Opens the browser for [provider] sign-in and polls for the result.
   Future<void> _oauth(String provider) async {
     if (_busy || _oauthBusy) return;
@@ -205,7 +226,20 @@ class _AuthScreenState extends State<AuthScreen> {
                     _sourceField(),
                     const SizedBox(height: 12),
                     _consentTile(),
-                  ],
+                  ] else
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: _busy ? null : _forgot,
+                        child: const Text(
+                          'Forgot password?',
+                          style: TextStyle(
+                            color: AppColors.textFaint,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
                   if (_error != null) ...[
                     const SizedBox(height: 12),
                     Text(
