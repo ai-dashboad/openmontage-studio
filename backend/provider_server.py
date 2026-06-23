@@ -44,6 +44,7 @@ FONT = next(
 )
 
 BG = "0x0F172A"  # studio background
+HEADLINE_COLOR = "0xE2E8F0"
 SUBTITLE_COLOR = "0x94A3B8"
 W, H, FPS = 1280, 720, 30
 
@@ -108,22 +109,53 @@ def _render(scenes: list[dict], voice: str) -> dict:
         duration = max(seconds, adur + 0.3, 1.5)
         total += duration
 
-        # Build the drawtext chain from whichever text fields are present.
-        filters = []
+        # Build a designed scene: vignette for depth, an accent kicker + bar, an
+        # animated headline, and a delayed subtitle. Text fades in for motion;
+        # the piece fades in on the first scene and out on the last.
+        title = (sc.get("title") or "").strip()
+        stype = (sc.get("type") or "").strip()
+        if stype == "stat_card":
+            hsize = 84
+        elif len(headline) > 26:
+            hsize = 42
+        elif len(headline) > 16:
+            hsize = 56
+        else:
+            hsize = 66
+        hcolor = accent if stype == "stat_card" else HEADLINE_COLOR
+
+        filters = ["vignette=PI/4.5"]
+        if headline:
+            filters.append(
+                f"drawbox=x=(iw-64)/2:y={int(H * 0.40)}:w=64:h=4:color={accent}@1:t=fill"
+            )
+        if title:
+            kf = work / f"kick_{i}.txt"
+            kf.write_text(title.upper(), encoding="utf-8")
+            filters.append(
+                f"drawtext=fontfile={FONT}:textfile={kf}:fontcolor={accent}:fontsize=22:"
+                f"x=(w-text_w)/2:y={int(H * 0.33)}:alpha='if(lt(t,0.3),t/0.3,1)'"
+            )
         if headline:
             hf = work / f"head_{i}.txt"
             hf.write_text(headline, encoding="utf-8")
             filters.append(
-                f"drawtext=fontfile={FONT}:textfile={hf}:fontcolor={accent}:"
-                f"fontsize=64:x=(w-text_w)/2:y=h*0.40"
+                f"drawtext=fontfile={FONT}:textfile={hf}:fontcolor={hcolor}:fontsize={hsize}:"
+                f"x=(w-text_w)/2:y={int(H * 0.45)}:alpha='if(lt(t,0.45),t/0.45,1)':"
+                f"shadowcolor=black@0.6:shadowx=0:shadowy=2"
             )
         if subtitle:
             sf = work / f"sub_{i}.txt"
             sf.write_text(subtitle, encoding="utf-8")
             filters.append(
-                f"drawtext=fontfile={FONT}:textfile={sf}:"
-                f"fontcolor={SUBTITLE_COLOR}:fontsize=32:x=(w-text_w)/2:y=h*0.40+96"
+                f"drawtext=fontfile={FONT}:textfile={sf}:fontcolor={SUBTITLE_COLOR}:fontsize=30:"
+                f"x=(w-text_w)/2:y={int(H * 0.45) + hsize + 22}:"
+                f"alpha='if(lt(t,0.35),0,if(lt(t,0.75),(t-0.35)/0.4,1))'"
             )
+        if i == 0:
+            filters.append("fade=t=in:st=0:d=0.5")
+        if i == len(scenes) - 1:
+            filters.append(f"fade=t=out:st={max(0.0, duration - 0.6):.2f}:d=0.6")
 
         clip = work / f"clip_{i}.mp4"
         cmd = [

@@ -144,9 +144,11 @@ python3 backend/provider_server.py     # listens on 127.0.0.1:8765
 - **Generate narration** (inspector) synthesizes the selected scene's headline +
   subtitle to an audio clip via `say`, plays it, and reports voice/duration/size.
 - **Render** (top bar) composites the whole scene plan into a real **MP4** —
-  ffmpeg color cards with the scene text drawn on top, each with its `say`
-  narration, concatenated — then offers to play it. A 1280×720 H.264 + AAC file
-  on disk, produced entirely locally.
+  designed scenes (vignette background, an accent kicker + bar, an animated
+  headline that fades in, a delayed subtitle, and fade in/out on the first and
+  last scene), each with its `say` narration, concatenated. Stat scenes render
+  the number large in the accent color. A 1280×720 H.264 + AAC file on disk,
+  produced entirely locally.
 
 If the provider is down, the studio says how to start it. `TtsClient` and
 `RenderClient` are the Dart sides; every provider (LLM, TTS, render) follows the
