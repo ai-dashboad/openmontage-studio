@@ -130,10 +130,10 @@ class _InspectorState extends State<Inspector> {
                 const SizedBox(height: 4),
                 _textField('Headline', _headline, (v) {
                   widget.onSceneChanged(widget.scene.copyWith(headline: v));
-                }),
+                }, fieldKey: const Key('inspectorHeadline')),
                 _textField('Subtitle', _subtitle, (v) {
                   widget.onSceneChanged(widget.scene.copyWith(subtitle: v));
-                }, maxLines: 2),
+                }, maxLines: 2, fieldKey: const Key('inspectorSubtitle')),
                 _accentRow(),
               ],
             ),
@@ -320,6 +320,7 @@ class _InspectorState extends State<Inspector> {
     TextEditingController controller,
     ValueChanged<String> onChanged, {
     int maxLines = 1,
+    Key? fieldKey,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -329,6 +330,7 @@ class _InspectorState extends State<Inspector> {
           _label(label),
           const SizedBox(height: 4),
           TextField(
+            key: fieldKey,
             controller: controller,
             onChanged: onChanged,
             maxLines: maxLines,

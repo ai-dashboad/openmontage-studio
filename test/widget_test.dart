@@ -286,6 +286,89 @@ void main() {
     expect(find.text('Render complete'), findsNothing);
   });
 
+  testWidgets('editing the headline updates the preview and undo reverts it', (
+    tester,
+  ) async {
+    await _boot(tester);
+    await _enterStudio(tester);
+    // A taller window so the inspector's scroll list lays out the headline
+    // field (the voice picker pushes it down in the default height).
+    await tester.binding.setSurfaceSize(const Size(1280, 1100));
+    await tester.pumpAndSettle();
+
+    // The sample opens on the Population scene ("8.1B").
+    expect(find.text('8.1B'), findsWidgets);
+
+    await tester.enterText(
+      find.byKey(const Key('inspectorHeadline')),
+      'Twelve',
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Twelve'), findsWidgets); // preview reflects the edit
+    expect(find.text('8.1B'), findsNothing);
+
+    await tester.tap(find.text('Undo'));
+    await tester.pumpAndSettle();
+    expect(find.text('8.1B'), findsWidgets);
+    expect(find.text('Twelve'), findsNothing);
+
+    await tester.tap(find.text('Redo'));
+    await tester.pumpAndSettle();
+    expect(find.text('Twelve'), findsWidgets);
+  });
+
+  testWidgets('the preview play button toggles playback', (tester) async {
+    await _boot(tester);
+    await _enterStudio(tester);
+
+    expect(find.byTooltip('Play'), findsOneWidget);
+    await tester.tap(find.byTooltip('Play'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(find.byTooltip('Pause'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Pause'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Play'), findsOneWidget);
+  });
+
+  testWidgets('revise asks the agent and updates the scene', (tester) async {
+    await _boot(
+      tester,
+      agent: _mockAgent(reply: '{"headline":"Revised line","subtitle":"new"}'),
+    );
+    await _enterStudio(tester);
+
+    await tester.tap(find.text('Revise with agent'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('reviseInput')), 'punchier');
+    await tester.tap(find.widgetWithText(FilledButton, 'Revise'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Revised line'), findsWidgets);
+  });
+
+  testWidgets('a completed render advances the pipeline to export', (
+    tester,
+  ) async {
+    await _boot(tester);
+    await _enterStudio(tester);
+
+    // Walk scene_plan -> assets -> edit -> compose.
+    for (var i = 0; i < 3; i++) {
+      await tester.tap(find.text('Approve & continue'));
+      await tester.pumpAndSettle();
+    }
+    // At compose the inspector action is Render (last of top-bar + inspector).
+    await tester.tap(find.widgetWithText(FilledButton, 'Render').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
+
+    // A successful render advances to the publish stage: action becomes Export.
+    expect(find.text('Export video'), findsOneWidget);
+  });
+
   testWidgets('settings opens the providers screen', (tester) async {
     await _boot(tester);
 

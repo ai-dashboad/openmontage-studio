@@ -420,6 +420,7 @@ class _StudioScreenState extends State<StudioScreen>
           style: TextStyle(color: AppColors.textPrimary, fontSize: 16),
         ),
         content: TextField(
+          key: const Key('reviseInput'),
           controller: controller,
           autofocus: true,
           style: const TextStyle(color: AppColors.textPrimary),
