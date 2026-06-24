@@ -56,8 +56,7 @@ class AuthClient {
   AuthClient({this.baseUrl = defaultBaseUrl, http.Client? httpClient})
     : _http = httpClient ?? http.Client();
 
-  static const String defaultBaseUrl =
-      'https://openmontage-auth.272876047.workers.dev';
+  static const String defaultBaseUrl = 'https://auth.opencli.ai';
 
   final String baseUrl;
   final http.Client _http;
