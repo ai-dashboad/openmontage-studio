@@ -10,6 +10,7 @@ class TopBar extends StatelessWidget {
     this.projectName = 'Untitled video',
     this.provider,
     this.onRetryServices,
+    this.creditsLabel,
     this.imagesEnabled = false,
     this.fetchingImages = false,
     this.onFetchImages,
@@ -21,6 +22,9 @@ class TopBar extends StatelessWidget {
   final String projectName;
   final ProviderManager? provider;
   final VoidCallback? onRetryServices;
+
+  /// Optional credit/plan chip (e.g. "5 free renders left" or "Pro").
+  final String? creditsLabel;
   final bool imagesEnabled;
   final bool fetchingImages;
   final VoidCallback? onFetchImages;
@@ -69,6 +73,10 @@ class TopBar extends StatelessWidget {
             const SizedBox(width: 16),
           ],
           const _LocalChip(),
+          if (creditsLabel != null) ...[
+            const SizedBox(width: 12),
+            _CreditsChip(label: creditsLabel!),
+          ],
           const SizedBox(width: 16),
           if (imagesEnabled) ...[
             OutlinedButton.icon(
@@ -223,6 +231,40 @@ class _ServiceStatus extends StatelessWidget {
           style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
         ),
       ],
+    );
+  }
+}
+
+/// Shows the user's remaining free renders, or "Pro". Amber when running low so
+/// the paywall doesn't feel like an ambush.
+class _CreditsChip extends StatelessWidget {
+  const _CreditsChip({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final isPro = label == 'Pro';
+    final low = !isPro && label.startsWith('0');
+    final color = isPro
+        ? AppColors.accentCyan
+        : low
+        ? AppColors.accentAmber
+        : AppColors.textMuted;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(isPro ? Icons.workspace_premium : Icons.bolt, color: color, size: 14),
+          const SizedBox(width: 6),
+          Text(label, style: TextStyle(color: color, fontSize: 12)),
+        ],
+      ),
     );
   }
 }

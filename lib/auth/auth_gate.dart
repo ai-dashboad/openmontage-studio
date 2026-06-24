@@ -124,6 +124,30 @@ class _AuthGateState extends State<AuthGate> {
     return widget.authClient.referral(token);
   }
 
+  Future<CreditStatus> _credits() async {
+    final token = _token;
+    if (token == null) throw const AuthException('not signed in');
+    return widget.authClient.credits(token);
+  }
+
+  Future<CreditConsumeResult> _consumeCredit() async {
+    final token = _token;
+    if (token == null) throw const AuthException('not signed in');
+    return widget.authClient.consumeCredit(token);
+  }
+
+  Future<CreditStatus> _shareUnlock() async {
+    final token = _token;
+    if (token == null) throw const AuthException('not signed in');
+    return widget.authClient.shareUnlock(token);
+  }
+
+  Future<String?> _checkoutUrl() async {
+    final token = _token;
+    if (token == null) throw const AuthException('not signed in');
+    return widget.authClient.billingCheckoutUrl(token);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -146,6 +170,10 @@ class _AuthGateState extends State<AuthGate> {
         changePassword: _changePassword,
         deleteAccount: _deleteAccount,
         referral: _referral,
+        credits: _credits,
+        consumeCredit: _consumeCredit,
+        shareUnlock: _shareUnlock,
+        checkoutUrl: _checkoutUrl,
       ),
     );
   }

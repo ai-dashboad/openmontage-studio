@@ -264,6 +264,18 @@
         '" style="color:var(--cyan)">' + otherLabel + '</a> · ';
     });
 
+    // After a successful Pro checkout Stripe returns here with ?upgraded=1.
+    if (new URLSearchParams(location.search).get('upgraded')) {
+      var pro = document.createElement('div');
+      pro.textContent =
+        '🎉 Welcome to Pro! Restart OpenMontage Studio to unlock unlimited renders.';
+      pro.style.cssText =
+        'position:fixed;top:0;left:0;right:0;z-index:100;padding:11px;' +
+        'text-align:center;font-weight:600;font-size:14px;color:#08080B;' +
+        'background:linear-gradient(110deg,#22D3EE,#A78BFA)';
+      document.body.appendChild(pro);
+    }
+
     // If the visitor arrived from an invite link (?ref=CODE), surface the code
     // so they can enter it when they create their account in the app.
     var ref = new URLSearchParams(location.search).get('ref');

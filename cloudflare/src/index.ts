@@ -32,6 +32,11 @@ export interface Env {
   // simply not sent and accounts stay unverified.
   RESEND_API_KEY?: string;
   RESEND_FROM?: string;
+  // Billing (Stripe). Optional: without these the billing endpoints report
+  // "not configured" (501) and the rest of the app keeps working.
+  STRIPE_SECRET_KEY?: string;
+  STRIPE_PRICE_ID?: string;
+  STRIPE_WEBHOOK_SECRET?: string;
 }
 
 interface UserRow {
@@ -53,7 +58,19 @@ interface UserRow {
   verified_at: string | null;
   referral_code: string | null;
   referred_by: string | null;
+  credits: number;
+  plan: string;
+  share_unlocks_used: number;
+  stripe_customer_id: string | null;
 }
+
+// Freemium tuning. New accounts get FREE_CREDITS renders; each render consumes
+// one. Out of credits → subscribe, share on X (+SHARE_REWARD, up to SHARE_MAX
+// times), or invite a friend (+REFERRAL_CREDIT each).
+const FREE_CREDITS = 5;
+const SHARE_REWARD = 3;
+const SHARE_MAX = 2;
+const REFERRAL_CREDIT = 3;
 
 // "Invite to unlock" milestones. Inviting N friends who sign up unlocks a
 // reward. Money never flows up a chain — this is a referral loop, not an MLM.
@@ -210,6 +227,8 @@ function publicUser(row: UserRow) {
     country: row.country,
     email_verified: row.email_verified === 1,
     referral_code: row.referral_code,
+    credits: row.credits,
+    plan: row.plan,
   };
 }
 
@@ -333,6 +352,12 @@ async function register(request: Request, env: Env): Promise<Response> {
     if (referrer && referrer.id !== id) referredBy = referrer.id;
   }
   const myReferralCode = await uniqueReferralCode(env);
+  // Reward the referrer with credits for bringing someone in.
+  if (referredBy) {
+    await env.DB.prepare('UPDATE users SET credits = credits + ? WHERE id = ?')
+      .bind(REFERRAL_CREDIT, referredBy)
+      .run();
+  }
 
   await env.DB.prepare(
     `INSERT INTO users
@@ -425,6 +450,168 @@ async function referral(request: Request, env: Env): Promise<Response> {
     next: nextTier(invited),
     tiers: REFERRAL_TIERS,
   });
+}
+
+// ---- credits / billing (freemium) ----
+
+function creditsView(row: UserRow) {
+  return {
+    credits: row.credits,
+    plan: row.plan,
+    is_pro: row.plan === 'pro',
+    free_allowance: FREE_CREDITS,
+    share_reward: SHARE_REWARD,
+    share_unlocks_used: row.share_unlocks_used,
+    share_unlocks_max: SHARE_MAX,
+  };
+}
+
+// Current credit balance and plan for the signed-in user.
+async function credits(request: Request, env: Env): Promise<Response> {
+  const userId = await userIdFromSession(request, env);
+  if (!userId) return json({ error: 'invalid session' }, 401);
+  const row = await loadUser(env, userId);
+  if (!row) return json({ error: 'user not found' }, 404);
+  return json(creditsView(row));
+}
+
+// Consumes one credit for a render/export. Pro users are never charged. Returns
+// 402 when a free user is out of credits, so the app can show the paywall.
+async function consumeCredit(request: Request, env: Env): Promise<Response> {
+  const userId = await userIdFromSession(request, env);
+  if (!userId) return json({ error: 'invalid session' }, 401);
+  const row = await loadUser(env, userId);
+  if (!row) return json({ error: 'user not found' }, 404);
+
+  if (row.plan === 'pro') {
+    return json({ allowed: true, ...creditsView(row) });
+  }
+  if (row.credits <= 0) {
+    return json({ allowed: false, ...creditsView(row), error: 'out of credits' }, 402);
+  }
+  // Decrement atomically and only when still positive, to avoid races.
+  const res = await env.DB.prepare(
+    'UPDATE users SET credits = credits - 1 WHERE id = ? AND credits > 0',
+  )
+    .bind(userId)
+    .run();
+  if (!res.meta.changes) {
+    const fresh = await loadUser(env, userId);
+    return json({ allowed: false, ...creditsView(fresh!), error: 'out of credits' }, 402);
+  }
+  const updated = await loadUser(env, userId);
+  return json({ allowed: true, ...creditsView(updated!) });
+}
+
+// Grants SHARE_REWARD credits for sharing on X, up to SHARE_MAX times. The post
+// itself can't be verified (no free X API), so this is trust-based and capped.
+async function shareUnlock(request: Request, env: Env): Promise<Response> {
+  const userId = await userIdFromSession(request, env);
+  if (!userId) return json({ error: 'invalid session' }, 401);
+  const row = await loadUser(env, userId);
+  if (!row) return json({ error: 'user not found' }, 404);
+  if (row.share_unlocks_used >= SHARE_MAX) {
+    return json({ ...creditsView(row), error: 'share reward limit reached' }, 409);
+  }
+  await env.DB.prepare(
+    'UPDATE users SET credits = credits + ?, share_unlocks_used = share_unlocks_used + 1 WHERE id = ?',
+  )
+    .bind(SHARE_REWARD, userId)
+    .run();
+  const updated = await loadUser(env, userId);
+  return json(creditsView(updated!));
+}
+
+// Creates a Stripe Checkout session for the Pro subscription and returns its URL.
+async function billingCheckout(request: Request, env: Env): Promise<Response> {
+  const userId = await userIdFromSession(request, env);
+  if (!userId) return json({ error: 'invalid session' }, 401);
+  if (!env.STRIPE_SECRET_KEY || !env.STRIPE_PRICE_ID) {
+    return json({ error: 'billing not configured' }, 501);
+  }
+  const row = await loadUser(env, userId);
+  if (!row) return json({ error: 'user not found' }, 404);
+
+  const params = new URLSearchParams();
+  params.set('mode', 'subscription');
+  params.set('line_items[0][price]', env.STRIPE_PRICE_ID);
+  params.set('line_items[0][quantity]', '1');
+  params.set('success_url', 'https://get.opencli.ai/?upgraded=1');
+  params.set('cancel_url', 'https://get.opencli.ai/');
+  params.set('client_reference_id', userId);
+  params.set('customer_email', row.email);
+  const res = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${env.STRIPE_SECRET_KEY}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: params.toString(),
+  });
+  const data = (await res.json()) as { url?: string };
+  if (!res.ok || !data.url) return json({ error: 'could not start checkout' }, 502);
+  return json({ url: data.url });
+}
+
+async function verifyStripeSignature(
+  payload: string,
+  header: string,
+  secret: string,
+): Promise<boolean> {
+  const parts = Object.fromEntries(
+    header.split(',').map((p) => p.split('=') as [string, string]),
+  );
+  if (!parts.t || !parts.v1) return false;
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const mac = await crypto.subtle.sign(
+    'HMAC',
+    key,
+    new TextEncoder().encode(`${parts.t}.${payload}`),
+  );
+  return timingSafeEqual(toHex(new Uint8Array(mac)), parts.v1);
+}
+
+// Stripe webhook: flips the account to 'pro' on a completed checkout and back to
+// 'free' when the subscription is cancelled.
+async function billingWebhook(request: Request, env: Env): Promise<Response> {
+  if (!env.STRIPE_WEBHOOK_SECRET) return json({ error: 'not configured' }, 501);
+  const payload = await request.text();
+  const sig = request.headers.get('Stripe-Signature') ?? '';
+  if (!(await verifyStripeSignature(payload, sig, env.STRIPE_WEBHOOK_SECRET))) {
+    return json({ error: 'bad signature' }, 400);
+  }
+  const event = JSON.parse(payload) as {
+    type: string;
+    data: { object: Record<string, unknown> };
+  };
+  const obj = event.data.object;
+  if (event.type === 'checkout.session.completed') {
+    const uid = obj.client_reference_id as string | undefined;
+    const customer = (obj.customer as string | undefined) ?? null;
+    if (uid) {
+      await env.DB.prepare(
+        'UPDATE users SET plan = ?, stripe_customer_id = ? WHERE id = ?',
+      )
+        .bind('pro', customer, uid)
+        .run();
+    }
+  } else if (event.type === 'customer.subscription.deleted') {
+    const customer = obj.customer as string | undefined;
+    if (customer) {
+      await env.DB.prepare(
+        "UPDATE users SET plan = 'free' WHERE stripe_customer_id = ?",
+      )
+        .bind(customer)
+        .run();
+    }
+  }
+  return json({ received: true });
 }
 
 // Update name and marketing fields. Setting marketing_consent=false is the
@@ -861,6 +1048,21 @@ export default {
       }
       if (method === 'GET' && pathname === '/referral') {
         return await referral(request, env);
+      }
+      if (method === 'GET' && pathname === '/credits') {
+        return await credits(request, env);
+      }
+      if (method === 'POST' && pathname === '/credits/consume') {
+        return await consumeCredit(request, env);
+      }
+      if (method === 'POST' && pathname === '/credits/share-unlock') {
+        return await shareUnlock(request, env);
+      }
+      if (method === 'POST' && pathname === '/billing/checkout') {
+        return await billingCheckout(request, env);
+      }
+      if (method === 'POST' && pathname === '/billing/webhook') {
+        return await billingWebhook(request, env);
       }
       if (method === 'GET' && pathname === '/auth/me') {
         return await me(request, env);
