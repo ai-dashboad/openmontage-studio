@@ -1,7 +1,7 @@
 # OpenMontage Studio
 
 A desktop studio for **AI-orchestrated video production**, built with Flutter for
-macOS (and, later, the other desktop targets).
+macOS and Windows (Linux builds from the same source).
 
 OpenMontage Studio treats video creation as a guided pipeline rather than a blank timeline:
 an agent proposes a plan, you review and approve each creative stage, and the app
@@ -131,28 +131,25 @@ embedded text if assets are unavailable), so you change *how* the agent works by
 editing the skills — the Dart code is just plumbing. All skill content is
 original to this project.
 
-## Local media providers (live)
+## Local media engines (live)
 
-A second localhost service, `backend/provider_server.py` — stdlib-only, wrapping
-macOS `say` and ffmpeg — gives the app real narration and real video, offline,
-no install, no API key:
+The app drives the local toolchain in-process from Dart (no sidecar server),
+giving real narration and real video, offline, no API key.
 
-```bash
-python3 backend/provider_server.py     # listens on 127.0.0.1:8765
-```
+- **Narration** runs through a pluggable [`VoiceSource`](lib/services/voice_source.dart):
+  the **OS-native engine** (macOS `say`, Windows SAPI via PowerShell, Linux
+  `espeak-ng`) is free and offline and is the default, with **ElevenLabs** cloud
+  neural voices as an opt-in upgrade. The source is chosen in Settings; the
+  renderer synthesizes each scene through whichever is active.
+- **Render** composites the whole scene plan into a real **MP4** via ffmpeg
+  (fast designed cards with cross-fades) or Remotion (`npx remotion render`,
+  cinematic motion graphics) — animated kickers, headlines, stat reveals, and
+  real bar/pie charts, each with its narration, concatenated. A 1920×1080
+  H.264 + AAC file on disk, produced entirely locally.
 
-- **Generate narration** (inspector) synthesizes the selected scene's headline +
-  subtitle to an audio clip via `say`, plays it, and reports voice/duration/size.
-- **Render** (top bar) composites the whole scene plan into a real **MP4** —
-  designed scenes (vignette background, an accent kicker + bar, an animated
-  headline that fades in, a delayed subtitle, and fade in/out on the first and
-  last scene), each with its `say` narration, concatenated. Stat scenes render
-  the number large in the accent color. A 1280×720 H.264 + AAC file on disk,
-  produced entirely locally.
-
-If the provider is down, the studio says how to start it. `TtsClient` and
-`RenderClient` are the Dart sides; every provider (LLM, TTS, render) follows the
-same `localhost`-endpoint shape, so adding more is uniform.
+`TtsClient`, `RenderClient`, `VoiceSettings`, and `MediaSettings` are the Dart
+sides; the `CommandRunner` seam injects an OS-appropriate PATH and is swapped for
+a fake in tests, so the media clients run without spawning real processes.
 
 ## Roadmap
 

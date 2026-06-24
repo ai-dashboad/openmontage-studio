@@ -15,7 +15,7 @@ migration:
     - platform: root
       create_revision: be9275b8229b50e19bff4694643c39bb71401010
       base_revision: be9275b8229b50e19bff4694643c39bb71401010
-    - platform: macos
+    - platform: windows
       create_revision: be9275b8229b50e19bff4694643c39bb71401010
       base_revision: be9275b8229b50e19bff4694643c39bb71401010
 

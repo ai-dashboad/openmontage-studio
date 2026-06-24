@@ -11,6 +11,7 @@ import 'services/provider_manager.dart';
 import 'services/render_client.dart';
 import 'services/tts_client.dart';
 import 'services/update_checker.dart';
+import 'services/voice_settings.dart';
 
 /// Top-level views the app switches between.
 enum AppView { home, studio, settings }
@@ -28,6 +29,7 @@ class AppShell extends StatefulWidget {
     this.providerManager,
     this.projectStore,
     this.mediaSettings,
+    this.voiceSettings,
     this.session,
   });
 
@@ -39,6 +41,7 @@ class AppShell extends StatefulWidget {
   final ProviderManager? providerManager;
   final ProjectStore? projectStore;
   final MediaSettings? mediaSettings;
+  final VoiceSettings? voiceSettings;
   final AccountSession? session;
 
   @override
@@ -48,8 +51,12 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   AppView _view = AppView.home;
   late final AgentService _agent = widget.agentService ?? AgentService();
-  late final TtsClient _tts = widget.ttsClient ?? TtsClient();
-  late final RenderClient _render = widget.renderClient ?? RenderClient();
+  late final VoiceSettings _voiceSettings =
+      widget.voiceSettings ?? VoiceSettings();
+  late final TtsClient _tts =
+      widget.ttsClient ?? TtsClient(voiceSettings: _voiceSettings);
+  late final RenderClient _render =
+      widget.renderClient ?? RenderClient(voiceSettings: _voiceSettings);
   late final ProviderManager _provider =
       widget.providerManager ?? ProviderManager(agent: _agent, media: _tts);
   late final ProjectStore _projects = widget.projectStore ?? ProjectStore();
@@ -136,6 +143,7 @@ class _AppShellState extends State<AppShell> {
         onBack: () => _go(AppView.home),
         session: widget.session,
         mediaSettings: _media,
+        voiceSettings: _voiceSettings,
       ),
     };
   }

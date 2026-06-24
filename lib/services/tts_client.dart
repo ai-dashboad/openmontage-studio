@@ -1,8 +1,10 @@
 import 'dart:io';
 
 import 'command_runner.dart';
+import 'voice_settings.dart';
+import 'voice_source.dart';
 
-/// A synthesized narration clip produced locally by macOS `say`.
+/// A synthesized narration clip produced by the active voice source.
 class TtsClip {
   const TtsClip({
     required this.path,
@@ -17,15 +19,20 @@ class TtsClip {
   final double seconds;
 }
 
-/// Local text-to-speech, driven directly via the macOS `say` engine — no server
-/// process. Synthesizes narration to disk, plays it through `afplay`, and lists
-/// installed voices via `say -v ?`.
+/// Local-first text-to-speech facade. Delegates to the user's chosen
+/// [VoiceSettings] source (OS-native by default, cloud neural optionally) so the
+/// voice picker and preview reflect the selection across macOS, Windows, and
+/// Linux. Synthesizes narration to disk and plays it back through the host's
+/// audio player.
 class TtsClient {
-  TtsClient({CommandRunner runner = const SystemCommandRunner()})
-    : _runner = runner;
+  TtsClient({
+    CommandRunner runner = const SystemCommandRunner(),
+    VoiceSettings? voiceSettings,
+  }) : _runner = runner,
+       _voices = voiceSettings ?? VoiceSettings();
 
   final CommandRunner _runner;
-  static const _defaultVoice = 'Samantha';
+  final VoiceSettings _voices;
   int _clipIndex = 0;
 
   Directory get _workDir {
@@ -34,61 +41,46 @@ class TtsClient {
     return dir;
   }
 
-  /// Whether the TTS tool is available on this machine.
-  Future<bool> health() => _runner.exists('say');
+  /// Whether narration is available at all — the OS-native engine is the floor,
+  /// so this stays green even when a cloud source is selected but offline.
+  Future<bool> health() => const SystemVoiceSource().health(_runner);
 
-  /// Lists installed English voices, common high-quality ones first.
-  Future<List<String>> voices() async {
-    final result = await _runner.run('say', ['-v', '?']);
-    if (!result.ok) return const [];
-    final names = <String>[];
-    final pattern = RegExp(r'^(.*?)\s+([a-z]{2}[-_][A-Z]{2})\s');
-    for (final line in result.stdout.split(RegExp(r'\r?\n'))) {
-      final match = pattern.firstMatch(line);
-      if (match != null && match.group(2)!.startsWith('en')) {
-        names.add(match.group(1)!.trim());
-      }
-    }
-    if (names.isEmpty) return const [_defaultVoice];
-    const preferred = ['Samantha', 'Alex', 'Daniel', 'Karen', 'Moira', 'Tessa'];
-    final ordered = [for (final p in preferred) if (names.contains(p)) p];
-    ordered.addAll(names.where((n) => !ordered.contains(n)));
-    return ordered;
-  }
+  /// Lists selectable voices for the active source, best-quality first.
+  Future<List<String>> voices() => _voices.voices(_runner);
 
   /// Synthesizes [text] to an audio clip on disk and returns its metadata.
   Future<TtsClip> synthesize(String text, {String? voice}) async {
-    final v = voice ?? _defaultVoice;
-    final out = '${_workDir.path}/narration_${_clipIndex++}.aiff';
-    final result = await _runner.run('say', ['-v', v, '-o', out, text]);
-    if (!result.ok) {
-      throw TtsException('say failed: ${result.stderr.trim()}');
+    final base = '${_workDir.path}/narration_${_clipIndex++}';
+    final clip = await _voices.synthesize(
+      _runner,
+      text,
+      outPathBase: base,
+      voice: voice,
+    );
+    if (clip == null) {
+      throw const TtsException('No narration was produced');
     }
-    final file = File(out);
     return TtsClip(
-      path: out,
-      voice: v,
-      bytes: file.existsSync() ? file.lengthSync() : 0,
-      seconds: await durationSeconds(_runner, out),
+      path: clip.path,
+      voice: clip.voice,
+      bytes: clip.bytes,
+      seconds: clip.seconds,
     );
   }
 
   /// Plays a previously synthesized clip through the speakers. Best-effort.
   Future<void> play(String path) async {
-    _runner.spawn('afplay', [path]);
-  }
-}
-
-/// Reads an audio file's estimated duration via `afinfo`.
-Future<double> durationSeconds(CommandRunner runner, String path) async {
-  try {
-    final result = await runner.run('afinfo', [path]);
-    final match = RegExp(
-      r'estimated duration:\s*([\d.]+)',
-    ).firstMatch(result.stdout);
-    return match != null ? double.parse(match.group(1)!) : 0;
-  } catch (_) {
-    return 0;
+    if (Platform.isMacOS) {
+      _runner.spawn('afplay', [path]);
+    } else if (Platform.isWindows) {
+      _runner.spawn('powershell', [
+        '-NoProfile',
+        '-Command',
+        "(New-Object Media.SoundPlayer '$path').PlaySync()",
+      ]);
+    } else {
+      _runner.spawn('ffplay', ['-nodisp', '-autoexit', '-loglevel', 'quiet', path]);
+    }
   }
 }
 
