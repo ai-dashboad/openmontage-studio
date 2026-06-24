@@ -300,6 +300,8 @@ interface AudioConfig {
     /** Loop the music if it's shorter than the video duration. */
     loop?: boolean;
   };
+  /** A short whoosh played at each scene transition for sound design. */
+  sfxTransition?: AudioLayer;
 }
 
 export interface ExplainerProps {
@@ -872,6 +874,22 @@ export const Explainer: React.FC<ExplainerProps> = (props) => {
       {/* Layer 5: cinematic film treatment over all visuals */}
       <CinematicVignette />
       <FilmGrain />
+
+      {/* Sound design: a whoosh leading into each scene transition. */}
+      {audio?.sfxTransition?.src &&
+        cuts.map((cut, i) => {
+          if (i === 0) return null;
+          const at = Math.round(cut.in_seconds * fps) - 4;
+          if (at < 0) return null;
+          return (
+            <Sequence key={`sfx-${cut.id}`} from={at} durationInFrames={24}>
+              <Audio
+                src={resolveAsset(audio.sfxTransition!.src)}
+                volume={audio.sfxTransition!.volume ?? 0.4}
+              />
+            </Sequence>
+          );
+        })}
 
       {/* Layer 4: Audio — narration */}
       {audio?.narration?.src && (

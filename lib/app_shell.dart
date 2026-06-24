@@ -31,6 +31,7 @@ class AppShell extends StatefulWidget {
     this.mediaSettings,
     this.voiceSettings,
     this.session,
+    this.onRequestSignIn,
   });
 
   /// Injected in tests; default to live local providers.
@@ -43,6 +44,9 @@ class AppShell extends StatefulWidget {
   final MediaSettings? mediaSettings;
   final VoiceSettings? voiceSettings;
   final AccountSession? session;
+
+  /// Presents sign-in on demand (guest mode). Returns the new session or null.
+  final Future<AccountSession?> Function()? onRequestSignIn;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -102,7 +106,7 @@ class _AppShellState extends State<AppShell> {
       _projectName = _deriveName(brief);
       _projectStage = 2;
       _projectVoice = 'Samantha';
-      _projectRuntime = 'ffmpeg';
+      _projectRuntime = ''; // auto — the studio picks the preferred runtime
       _view = AppView.studio;
     });
   }
@@ -139,6 +143,9 @@ class _AppShellState extends State<AppShell> {
         onReopenProject: _reopenProject,
         onOpenSettings: () => _go(AppView.settings),
         updateChecker: widget.updateChecker,
+        onSignIn: widget.session == null && widget.onRequestSignIn != null
+            ? () => widget.onRequestSignIn!()
+            : null,
       ),
       AppView.studio => StudioScreen(
         agent: _agent,
@@ -154,6 +161,7 @@ class _AppShellState extends State<AppShell> {
         runtime: _projectRuntime,
         branding: _branding,
         session: widget.session,
+        onRequestSignIn: widget.onRequestSignIn,
         brief: _brief,
         scenes: _scenes,
         onHome: () => _go(AppView.home),

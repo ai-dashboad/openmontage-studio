@@ -43,6 +43,7 @@ class StudioScreen extends StatefulWidget {
     this.runtime = 'ffmpeg',
     this.branding = true,
     this.session,
+    this.onRequestSignIn,
     this.brief,
     this.scenes = MockProject.scenes,
     this.onHome,
@@ -68,9 +69,13 @@ class StudioScreen extends StatefulWidget {
   final bool branding;
 
   /// The signed-in session, used to meter renders against the free credit
-  /// allowance and show the paywall. Null in tests / unauthenticated builds,
-  /// where rendering is never metered.
+  /// allowance and show the paywall. Null for guests / tests, where rendering
+  /// isn't metered until the user signs in.
   final AccountSession? session;
+
+  /// Presents sign-in on demand. Guests are prompted to sign in the first time
+  /// they render (rendering is the metered action).
+  final Future<AccountSession?> Function()? onRequestSignIn;
 
   /// The brief the user typed on the home screen, if any — seeds the agent
   /// conversation so the studio continues the same thread.
@@ -163,7 +168,9 @@ class _StudioScreenState extends State<StudioScreen>
       if (mounted && r.isNotEmpty) {
         setState(() {
           _runtimes = r;
-          if (!r.contains(_runtime)) _runtime = r.first;
+          // Empty = "auto": adopt the preferred (first) runtime, which is
+          // Remotion when available.
+          if (_runtime.isEmpty || !r.contains(_runtime)) _runtime = r.first;
         });
       }
     });
@@ -183,8 +190,16 @@ class _StudioScreenState extends State<StudioScreen>
     _save();
   }
 
-  Future<void> _refreshCredits() async {
-    final session = widget.session;
+  @override
+  void didUpdateWidget(StudioScreen old) {
+    super.didUpdateWidget(old);
+    // A guest signed in (session appeared) — load their balance for the chip.
+    if (old.session == null && widget.session != null) _refreshCredits();
+  }
+
+  Future<void> _refreshCredits() => _refreshCreditsWith(widget.session);
+
+  Future<void> _refreshCreditsWith(AccountSession? session) async {
     if (session == null) return;
     try {
       final c = await session.credits();
@@ -541,9 +556,16 @@ class _StudioScreenState extends State<StudioScreen>
   }
 
   Future<void> _openRender() async {
+    // Guests must sign in to render (rendering is the metered action). Prompt
+    // on demand; if they cancel, don't render.
+    var session = widget.session;
+    if (session == null && widget.onRequestSignIn != null) {
+      session = await widget.onRequestSignIn!();
+      if (session == null) return; // cancelled sign-in
+      if (mounted) await _refreshCreditsWith(session);
+    }
     // Meter against the free credit allowance when signed in. A network error
     // fails open (never block a render over a connectivity blip).
-    final session = widget.session;
     if (session != null) {
       try {
         var result = await session.consumeCredit();
