@@ -2,16 +2,23 @@ import 'package:flutter/material.dart';
 import '../auth/account_session.dart';
 import '../models/catalog.dart';
 import '../services/auth_client.dart' show AuthException;
+import '../services/media_settings.dart';
 import '../theme/app_theme.dart';
 
 /// Providers settings: cloud APIs and local engines, grouped by capability. The
 /// cloud/local split is what makes online vs offline "just which endpoint."
 /// Also hosts the account section (sign out + marketing opt-out).
 class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key, required this.onBack, this.session});
+  const SettingsScreen({
+    super.key,
+    required this.onBack,
+    this.session,
+    this.mediaSettings,
+  });
 
   final VoidCallback onBack;
   final AccountSession? session;
+  final MediaSettings? mediaSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +39,10 @@ class SettingsScreen extends StatelessWidget {
               const SizedBox(height: 24),
               if (session != null) ...[
                 _AccountCard(session: session!),
+                const SizedBox(height: 20),
+              ],
+              if (mediaSettings != null) ...[
+                _MediaSourceCard(media: mediaSettings!),
                 const SizedBox(height: 20),
               ],
               for (final entry in byCapability.entries) ...[
@@ -552,6 +563,132 @@ class _ProviderRow extends StatelessWidget {
             )
           else
             const Icon(Icons.check, size: 16, color: AppColors.accentGreen),
+        ],
+      ),
+    );
+  }
+}
+
+/// Picks the background-image source (free stock / cloud AI / off) and stores
+/// its API key. The chosen source resolves every scene's image at fetch time.
+class _MediaSourceCard extends StatefulWidget {
+  const _MediaSourceCard({required this.media});
+  final MediaSettings media;
+
+  @override
+  State<_MediaSourceCard> createState() => _MediaSourceCardState();
+}
+
+class _MediaSourceCardState extends State<_MediaSourceCard> {
+  final TextEditingController _key = TextEditingController();
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.media.load().then((_) {
+      if (!mounted) return;
+      _key.text = widget.media.keyFor(widget.media.selectedId);
+      setState(() => _ready = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _key.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final media = widget.media;
+    final selected = _ready ? media.selected : media.sources.first;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.image_outlined, size: 16, color: AppColors.accentPurple),
+              SizedBox(width: 8),
+              Text(
+                'Background images',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Where each scene’s background image comes from.',
+            style: TextStyle(color: AppColors.textFaint, fontSize: 12),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: selected.id,
+                isExpanded: true,
+                dropdownColor: AppColors.surfaceHigh,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                ),
+                items: [
+                  for (final s in media.sources)
+                    DropdownMenuItem(value: s.id, child: Text(s.label)),
+                ],
+                onChanged: (id) async {
+                  if (id == null) return;
+                  await media.setSource(id);
+                  if (!mounted) return;
+                  _key.text = media.keyFor(id);
+                  setState(() {});
+                },
+              ),
+            ),
+          ),
+          if (selected.needsKey) ...[
+            const SizedBox(height: 10),
+            TextField(
+              controller: _key,
+              obscureText: true,
+              onChanged: (v) => media.setKey(selected.id, v.trim()),
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: 'API key',
+                hintStyle: const TextStyle(color: AppColors.textFaint),
+                helperText: selected.keyHint,
+                helperStyle: const TextStyle(color: AppColors.textFaint),
+                filled: true,
+                fillColor: AppColors.background,
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AppColors.accentPurple),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

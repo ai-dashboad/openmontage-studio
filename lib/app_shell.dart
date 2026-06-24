@@ -5,6 +5,7 @@ import 'screens/settings_screen.dart';
 import 'screens/studio_screen.dart';
 import 'auth/account_session.dart';
 import 'services/agent_service.dart';
+import 'services/media_settings.dart';
 import 'services/project_store.dart';
 import 'services/provider_manager.dart';
 import 'services/render_client.dart';
@@ -26,6 +27,7 @@ class AppShell extends StatefulWidget {
     this.updateChecker,
     this.providerManager,
     this.projectStore,
+    this.mediaSettings,
     this.session,
   });
 
@@ -36,6 +38,7 @@ class AppShell extends StatefulWidget {
   final UpdateChecker? updateChecker;
   final ProviderManager? providerManager;
   final ProjectStore? projectStore;
+  final MediaSettings? mediaSettings;
   final AccountSession? session;
 
   @override
@@ -50,6 +53,7 @@ class _AppShellState extends State<AppShell> {
   late final ProviderManager _provider =
       widget.providerManager ?? ProviderManager(agent: _agent, media: _tts);
   late final ProjectStore _projects = widget.projectStore ?? ProjectStore();
+  late final MediaSettings _media = widget.mediaSettings ?? MediaSettings();
 
   /// The plan driving the studio — the agent's output, or the sample default.
   List<Scene> _scenes = MockProject.scenes;
@@ -117,6 +121,7 @@ class _AppShellState extends State<AppShell> {
         render: _render,
         provider: _provider,
         projectStore: _projects,
+        mediaSettings: _media,
         projectId: _projectId,
         projectName: _projectName,
         initialStage: _projectStage,
@@ -130,6 +135,7 @@ class _AppShellState extends State<AppShell> {
       AppView.settings => SettingsScreen(
         onBack: () => _go(AppView.home),
         session: widget.session,
+        mediaSettings: _media,
       ),
     };
   }

@@ -337,6 +337,13 @@ class RenderClient {
     } else {
       cut.addAll({'type': 'text_card', 'text': headline.isEmpty ? subtitle : headline});
     }
+    // A resolved background image (stock/AI) sits behind the scene, dimmed so
+    // the headline stays readable.
+    final image = (sc['imageUrl'] as String?) ?? '';
+    if (image.isNotEmpty) {
+      cut['backgroundImage'] = image;
+      cut['backgroundOverlay'] = 0.55;
+    }
     return cut;
   }
 
