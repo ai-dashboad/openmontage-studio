@@ -187,8 +187,7 @@ async function rateLimit(
 
 // ---- email (Resend) + verification ----
 
-const VERIFY_BASE =
-  'https://openmontage-auth.272876047.workers.dev/auth/verify';
+const VERIFY_BASE = 'https://auth.opencli.ai/auth/verify';
 
 async function sendEmail(
   env: Env,
@@ -406,7 +405,7 @@ async function resendVerification(request: Request, env: Env): Promise<Response>
 
 // ---- password reset, change, account deletion ----
 
-const RESET_BASE = 'https://openmontage-auth.272876047.workers.dev/auth/reset';
+const RESET_BASE = 'https://auth.opencli.ai/auth/reset';
 
 // Always returns ok (never leaks whether the email exists). Emails a reset link
 // if the account exists.
@@ -521,6 +520,8 @@ async function deleteAccount(request: Request, env: Env): Promise<Response> {
 // here), upserts the user, mints a session, and stashes it under the state. The
 // app then polls /auth/oauth/exchange?state=S to collect the session.
 
+// Stays on workers.dev until the GitHub/Google OAuth apps' redirect URIs are
+// updated to auth.opencli.ai — the callback must match a registered URI.
 const OAUTH_BASE =
   'https://openmontage-auth.272876047.workers.dev/auth/oauth';
 

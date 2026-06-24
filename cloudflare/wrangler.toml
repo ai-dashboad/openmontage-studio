@@ -3,6 +3,14 @@ main = "src/index.ts"
 compatibility_date = "2025-06-01"
 account_id = "e62a1b607ff359585155e7a27c087f6a"
 
+# Branded auth endpoint. Cloudflare provisions the DNS record + TLS cert on
+# deploy. Keep the workers.dev URL enabled too so already-shipped apps (which
+# point at it) keep working during/after the migration.
+workers_dev = true
+routes = [
+  { pattern = "auth.opencli.ai", custom_domain = true }
+]
+
 # D1 — the users database.
 [[d1_databases]]
 binding = "DB"
