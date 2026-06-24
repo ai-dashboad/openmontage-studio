@@ -19,6 +19,7 @@ Future<void> showRenderDialog(
   String projectName = 'video',
   String? voice,
   String runtime = 'ffmpeg',
+  bool branding = true,
 }) {
   return showDialog(
     context: context,
@@ -32,6 +33,7 @@ Future<void> showRenderDialog(
       projectName: projectName,
       voice: voice,
       runtime: runtime,
+      branding: branding,
     ),
   );
 }
@@ -47,6 +49,7 @@ class _RenderDialog extends StatefulWidget {
     this.onComplete,
     this.voice,
     this.runtime = 'ffmpeg',
+    this.branding = true,
   });
   final RenderClient client;
   final List<Map<String, dynamic>> scenes;
@@ -55,6 +58,7 @@ class _RenderDialog extends StatefulWidget {
   final ValueChanged<RenderResult>? onComplete;
   final String? voice;
   final String runtime;
+  final bool branding;
 
   @override
   State<_RenderDialog> createState() => _RenderDialogState();
@@ -78,6 +82,7 @@ class _RenderDialogState extends State<_RenderDialog> {
         widget.scenes,
         voice: widget.voice,
         runtime: widget.runtime,
+        branding: widget.branding,
       );
       if (!mounted) return;
       setState(() {

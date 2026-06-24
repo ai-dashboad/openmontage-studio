@@ -118,6 +118,12 @@ class _AuthGateState extends State<AuthGate> {
     });
   }
 
+  Future<ReferralStatus> _referral() async {
+    final token = _token;
+    if (token == null) throw const AuthException('not signed in');
+    return widget.authClient.referral(token);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -139,6 +145,7 @@ class _AuthGateState extends State<AuthGate> {
         resendVerification: _resendVerification,
         changePassword: _changePassword,
         deleteAccount: _deleteAccount,
+        referral: _referral,
       ),
     );
   }

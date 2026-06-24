@@ -62,6 +62,10 @@ class _AppShellState extends State<AppShell> {
   late final ProjectStore _projects = widget.projectStore ?? ProjectStore();
   late final MediaSettings _media = widget.mediaSettings ?? MediaSettings();
 
+  /// Whether the branded end card is appended to renders. Disabled once the
+  /// user unlocks the "remove branding" referral reward (checked at startup).
+  bool _branding = true;
+
   /// The plan driving the studio — the agent's output, or the sample default.
   List<Scene> _scenes = MockProject.scenes;
 
@@ -72,6 +76,20 @@ class _AppShellState extends State<AppShell> {
   String _projectVoice = 'Samantha';
   String _projectRuntime = 'ffmpeg';
   String? _brief;
+
+  @override
+  void initState() {
+    super.initState();
+    // Apply the "remove branding" referral reward if the user has unlocked it.
+    final session = widget.session;
+    if (session != null) {
+      session.referral().then((status) {
+        if (mounted && status.hasUnlock('no_branding')) {
+          setState(() => _branding = false);
+        }
+      }).catchError((_) {/* referral is best-effort; keep branding on */});
+    }
+  }
 
   void _go(AppView view) => setState(() => _view = view);
 
@@ -134,6 +152,7 @@ class _AppShellState extends State<AppShell> {
         initialStage: _projectStage,
         voice: _projectVoice,
         runtime: _projectRuntime,
+        branding: _branding,
         brief: _brief,
         scenes: _scenes,
         onHome: () => _go(AppView.home),
