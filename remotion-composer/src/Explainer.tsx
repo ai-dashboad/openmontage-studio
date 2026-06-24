@@ -87,6 +87,15 @@ function shiftColor(hex: string, amount: number): string {
   return `rgb(${clamp(r + (255 - r) * amount)}, ${clamp(g + (255 - g) * amount)}, ${clamp(b + (255 - b) * amount)})`;
 }
 
+// A cohesive single-hue ramp from the scene accent (bright -> deep). Reads far
+// more premium than a rainbow palette and encodes magnitude as it descends.
+function accentPalette(accent: string, n: number): string[] {
+  const count = Math.max(1, n);
+  return Array.from({ length: count }, (_, i) =>
+    shiftColor(accent, -0.5 * (count > 1 ? i / (count - 1) : 0))
+  );
+}
+
 const AnimatedBackground: React.FC<{ theme: ThemeConfig }> = ({ theme }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
@@ -675,7 +684,8 @@ const SceneRenderer: React.FC<{ cut: Cut; theme: ThemeConfig }> = ({ cut, theme 
   if (cut.type === "bar_chart" && cut.chartData) {
     return maybeWrapWithBg(
       <BarChart
-        data={cut.chartData} title={cut.title} colors={cut.chartColors || theme.chartColors}
+        data={cut.chartData} title={cut.title}
+        colors={cut.chartColors || accentPalette(accent, cut.chartData.length)}
         animationStyle={(cut.chartAnimation as any) || "grow-up"}
         showGrid={cut.showGrid} showValues={cut.showValues} backgroundColor={bgColor}
       />
@@ -694,7 +704,8 @@ const SceneRenderer: React.FC<{ cut: Cut; theme: ThemeConfig }> = ({ cut, theme 
   if (cut.type === "pie_chart" && cut.chartData) {
     return maybeWrapWithBg(
       <PieChart
-        data={cut.chartData} title={cut.title} colors={cut.chartColors || theme.chartColors}
+        data={cut.chartData} title={cut.title}
+        colors={cut.chartColors || accentPalette(accent, cut.chartData.length)}
         animationStyle={(cut.chartAnimation as any) || "expand"}
         donut={cut.donut} centerLabel={cut.centerLabel} centerValue={cut.centerValue}
         showLegend={cut.showLegend} backgroundColor={bgColor}
