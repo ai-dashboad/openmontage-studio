@@ -81,17 +81,40 @@ class RenderClient {
   }
 
   /// Renders [scenes] to an MP4 using [runtime] ("ffmpeg" or "remotion"),
-  /// narrated with [voice].
+  /// narrated with [voice]. When [branding] is true (the default for the free
+  /// tier), a short "Made with OpenMontage Studio" end card is appended — so
+  /// every shared video carries the product, which is the core growth loop.
   Future<RenderResult> render(
     List<Map<String, dynamic>> scenes, {
     String? voice,
     String? runtime,
+    bool branding = true,
   }) async {
     final v = voice ?? '';
+    final toRender = branding ? [...scenes, _brandingScene()] : scenes;
     if (runtime == 'remotion' && await _remotionAvailable()) {
-      return _renderRemotion(scenes, v);
+      return _renderRemotion(toRender, v);
     }
-    return _renderFfmpeg(scenes, v);
+    return _renderFfmpeg(toRender, v);
+  }
+
+  /// The branded end card appended to every free-tier render. Flagged
+  /// `noNarration` so it is rendered silently by both runtimes. The personal
+  /// "Made on my …" line is platform-aware so it reads true on every host.
+  Map<String, dynamic> _brandingScene() {
+    final made = Platform.isMacOS
+        ? 'Made on my Mac'
+        : Platform.isWindows
+        ? 'Made on my PC'
+        : 'Made locally';
+    return {
+      'type': 'hero_title',
+      'headline': 'OpenMontage Studio',
+      'subtitle': '$made · get.opencli.ai',
+      'seconds': 1.8,
+      'accent': '22D3EE',
+      'noNarration': true,
+    };
   }
 
   /// Opens a finished clip in the default player. Best-effort.
@@ -143,10 +166,9 @@ class RenderClient {
       final seconds = (sc['seconds'] as num?)?.toDouble() ?? 4;
       final accent = _normHex(sc['accent']);
 
-      final narration = [
-        headline,
-        subtitle,
-      ].where((s) => s.isNotEmpty).join('. ');
+      final narration = sc['noNarration'] == true
+          ? ''
+          : [headline, subtitle].where((s) => s.isNotEmpty).join('. ');
       String? narrPath;
       var adur = 0.0;
       if (narration.isNotEmpty) {
@@ -405,7 +427,9 @@ class RenderClient {
       final headline = ((sc['headline'] ?? sc['title'] ?? '') as String).trim();
       final subtitle = ((sc['subtitle'] ?? '') as String).trim();
       final seconds = (sc['seconds'] as num?)?.toDouble() ?? 4;
-      final narration = [headline, subtitle].where((s) => s.isNotEmpty).join('. ');
+      final narration = sc['noNarration'] == true
+          ? ''
+          : [headline, subtitle].where((s) => s.isNotEmpty).join('. ');
       String? raw;
       var adur = 0.0;
       if (narration.isNotEmpty) {
