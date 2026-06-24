@@ -111,6 +111,25 @@
   .dl-size{opacity:.55;font-weight:400}
   .dl-req{color:var(--faint);font-size:12px;margin-top:12px;line-height:1.5}
   .dl-req a{color:var(--cyan)}
+
+  /* pricing */
+  .bill-toggle{display:inline-flex;border:1px solid var(--border);border-radius:999px;padding:3px;margin-top:22px}
+  .bill-toggle button{border:none;background:transparent;color:var(--muted);padding:7px 18px;border-radius:999px;font-size:13px;cursor:pointer;font-weight:600;font-family:inherit}
+  .bill-toggle button.active{background:var(--grad);color:#08080B}
+  .price-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;margin-top:28px;text-align:left}
+  @media(max-width:780px){.price-grid{grid-template-columns:1fr}}
+  .price-card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:28px;position:relative}
+  .price-card.pro{border-color:var(--purple);box-shadow:0 0 0 1px var(--purple),0 24px 60px -28px rgba(167,139,250,.5)}
+  .price-name{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .price-amt{font-size:46px;font-weight:800;letter-spacing:-.02em;margin:10px 0 2px}
+  .price-amt span{font-size:16px;font-weight:500;color:var(--muted)}
+  .price-sub{color:var(--faint);font-size:13px;min-height:18px}
+  .price-list{list-style:none;margin:18px 0 22px;display:flex;flex-direction:column;gap:10px}
+  .price-list li{display:flex;gap:10px;align-items:flex-start;font-size:14px;color:var(--text)}
+  .price-list li b{color:var(--cyan);flex:none;width:14px}
+  .price-list li.muted{color:var(--faint)}
+  .price-list li.muted b{color:var(--faint)}
+  .price-badge{position:absolute;top:-11px;right:22px;font-size:11px;font-weight:700;color:#08080B;background:var(--grad);padding:5px 12px;border-radius:999px}
 </style>
 </head>
 <body>
@@ -120,7 +139,7 @@
   <div class="nav-links">
     <a href="#how">How it works</a>
     <a href="#features">Features</a>
-    <a href="#showcase">Showcase</a>
+    <a href="#pricing">Pricing</a>
     <a class="btn btn-ghost" id="dl-nav" style="padding:8px 16px" href="#download">Download</a>
   </div>
 </div></nav>
@@ -195,6 +214,49 @@
   </div>
 </section>
 
+<section id="pricing">
+  <div class="wrap">
+    <div class="eyebrow grad-text">Pricing</div>
+    <div class="h2">Start free. Go Pro when you’re ready.</div>
+    <p class="lead">Every download includes a generous free tier — no account needed to try. Run low? Earn more renders by sharing or inviting friends. Upgrade only if you want unlimited.</p>
+    <div class="bill-toggle">
+      <button id="bill-monthly" class="active" onclick="omBill('monthly')">Monthly</button>
+      <button id="bill-annual" onclick="omBill('annual')">Annual · save 17%</button>
+    </div>
+    <div class="price-grid">
+      <div class="price-card">
+        <div class="price-name">Free</div>
+        <div class="price-amt">$0 <span>/ forever</span></div>
+        <div class="price-sub">No account needed to start.</div>
+        <ul class="price-list">
+          <li><b>✓</b> 5 free renders to start</li>
+          <li><b>✓</b> Earn more — share on X or invite friends</li>
+          <li><b>✓</b> Local &amp; private, works offline</li>
+          <li><b>✓</b> Cinematic ffmpeg + Remotion renders</li>
+          <li><b>✓</b> System voice on every platform</li>
+          <li class="muted"><b>○</b> Ends with a “Made with” card</li>
+        </ul>
+        <a class="btn btn-ghost" href="#download" style="width:100%;justify-content:center">Download free</a>
+      </div>
+      <div class="price-card pro">
+        <span class="price-badge">Most popular</span>
+        <div class="price-name grad-text">Pro</div>
+        <div class="price-amt"><span id="pro-price">$9</span> <span id="pro-period">/ mo</span></div>
+        <div class="price-sub" id="pro-note">Billed monthly. Cancel anytime.</div>
+        <ul class="price-list">
+          <li><b>✓</b> Everything in Free, plus:</li>
+          <li><b>✓</b> Unlimited renders</li>
+          <li><b>✓</b> No “Made with” end card</li>
+          <li><b>✓</b> Premium cloud voices</li>
+          <li><b>✓</b> Priority updates</li>
+        </ul>
+        <a class="btn btn-primary" href="#download" style="width:100%;justify-content:center">Get OpenMontage</a>
+        <div style="text-align:center;color:var(--faint);font-size:12px;margin-top:10px">Upgrade from inside the app.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section id="download">
   <div class="wrap"><div class="final">
     <div class="glow" style="width:480px;height:300px;background:#A78BFA;top:-80px;left:50%;transform:translateX(-50%)"></div>
@@ -239,6 +301,30 @@
   <div class="logo" style="font-size:15px"><span class="dot"></span> OpenMontage Studio</div>
   <div>Built on Cloudflare · <a class="grad-text" href="mailto:hello@opencli.ai">hello@opencli.ai</a></div>
 </div></footer>
+
+<script>
+  // Pricing monthly/annual toggle (annual = ~2 months free).
+  function omBill(period) {
+    var price = document.getElementById('pro-price');
+    var per = document.getElementById('pro-period');
+    var note = document.getElementById('pro-note');
+    var m = document.getElementById('bill-monthly');
+    var a = document.getElementById('bill-annual');
+    if (period === 'annual') {
+      price.textContent = '$90';
+      per.textContent = '/ yr';
+      note.textContent = 'Billed yearly — 2 months free. Cancel anytime.';
+      a.classList.add('active');
+      m.classList.remove('active');
+    } else {
+      price.textContent = '$9';
+      per.textContent = '/ mo';
+      note.textContent = 'Billed monthly. Cancel anytime.';
+      m.classList.add('active');
+      a.classList.remove('active');
+    }
+  }
+</script>
 
 <script>
   // Make the primary download match the visitor's OS, and offer the other.
