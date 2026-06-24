@@ -90,6 +90,27 @@
 
   footer{border-top:1px solid var(--border);padding:40px 0;color:var(--faint);font-size:14px}
   footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px;align-items:center}
+
+  /* download section */
+  #download .final{padding:56px 32px}
+  .dl-banner{display:inline-flex;align-items:center;gap:8px;margin:18px auto 0;font-size:14px;
+    color:var(--muted);border:1px solid var(--border);border-radius:999px;padding:7px 16px;background:rgba(255,255,255,.02)}
+  .dl-banner .ring{width:7px;height:7px;border-radius:50%;background:var(--cyan);box-shadow:0 0 10px var(--cyan)}
+  .dl-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;margin-top:32px;text-align:left}
+  @media(max-width:780px){.dl-grid{grid-template-columns:1fr}}
+  .dl-card{background:var(--bg);border:1px solid var(--border);border-radius:18px;padding:26px;transition:.2s;position:relative}
+  .dl-card.is-rec{border-color:var(--purple);box-shadow:0 0 0 1px var(--purple),0 24px 60px -28px rgba(167,139,250,.55)}
+  .dl-os{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+  .dl-ic{font-size:26px;line-height:1}
+  .dl-name{font-size:19px;font-weight:700}
+  .dl-meta{color:var(--muted);font-size:12px;margin-top:2px}
+  .rec-badge{display:none;margin-left:auto;font-size:11px;font-weight:700;color:#08080B;
+    background:var(--grad);padding:5px 11px;border-radius:999px;white-space:nowrap}
+  .dl-card.is-rec .rec-badge{display:inline-block}
+  .dl-card .btn{width:100%;justify-content:center}
+  .dl-size{opacity:.55;font-weight:400}
+  .dl-req{color:var(--faint);font-size:12px;margin-top:12px;line-height:1.5}
+  .dl-req a{color:var(--cyan)}
 </style>
 </head>
 <body>
@@ -100,7 +121,7 @@
     <a href="#how">How it works</a>
     <a href="#features">Features</a>
     <a href="#showcase">Showcase</a>
-    <a class="btn btn-ghost" id="dl-nav" style="padding:8px 16px" href="/download/OpenMontageStudio.dmg">Download</a>
+    <a class="btn btn-ghost" id="dl-nav" style="padding:8px 16px" href="#download">Download</a>
   </div>
 </div></nav>
 
@@ -174,14 +195,41 @@
   </div>
 </section>
 
-<section>
+<section id="download">
   <div class="wrap"><div class="final">
     <div class="glow" style="width:480px;height:300px;background:#A78BFA;top:-80px;left:50%;transform:translateX(-50%)"></div>
     <div style="position:relative;z-index:1">
-      <div class="h2" style="font-size:clamp(30px,4.5vw,46px)">Make your next video in minutes.</div>
-      <p class="lead" style="margin:14px auto 0;text-align:center">Free to download. Runs on your machine — macOS &amp; Windows.</p>
-      <div class="cta" style="margin-top:28px"><a class="btn btn-primary dl-primary" href="/download/OpenMontageStudio.dmg">⬇ Download for macOS</a></div>
-      <div class="cta-note" style="text-align:center"><span class="dl-secondary"></span></div>
+      <div class="h2" style="font-size:clamp(30px,4.5vw,46px)">Download OpenMontage Studio.</div>
+      <p class="lead" style="margin:14px auto 0;text-align:center">Free. Runs on your machine. Pick your platform — we’ve highlighted the one we think you’re on.</p>
+      <div style="text-align:center"><span class="dl-banner" id="dl-banner"><span class="ring"></span> Detecting your system…</span></div>
+
+      <div class="dl-grid">
+        <div class="dl-card" id="card-macos">
+          <div class="dl-os">
+            <span class="dl-ic">🍎</span>
+            <div>
+              <div class="dl-name">macOS</div>
+              <div class="dl-meta">Apple Silicon &amp; Intel · signed &amp; notarized</div>
+            </div>
+            <span class="rec-badge">✦ Recommended for you</span>
+          </div>
+          <a class="btn btn-primary" href="/download/OpenMontageStudio.dmg">⬇ Download .dmg <span class="dl-size">· 20 MB</span></a>
+          <div class="dl-req">macOS 12 or later · v1.1.0 · open the .dmg and drag to Applications.</div>
+        </div>
+
+        <div class="dl-card" id="card-windows">
+          <div class="dl-os">
+            <span class="dl-ic">🪟</span>
+            <div>
+              <div class="dl-name">Windows</div>
+              <div class="dl-meta">Windows 10 / 11 · 64-bit</div>
+            </div>
+            <span class="rec-badge">✦ Recommended for you</span>
+          </div>
+          <a class="btn btn-primary" href="/download/OpenMontageStudio-setup.exe">⬇ Download installer <span class="dl-size">· 12 MB</span></a>
+          <div class="dl-req">v1.1.1 · or grab the <a href="/download/OpenMontageStudio-windows-x64.zip">portable .zip</a>. Unsigned for now — if SmartScreen warns, choose “More info → Run anyway.”</div>
+        </div>
+      </div>
     </div>
   </div></div>
 </section>
@@ -214,8 +262,19 @@
         'Also for <a href="' + otherHref +
         '" style="color:var(--cyan)">' + otherLabel + '</a> · ';
     });
-    var nav = document.getElementById('dl-nav');
-    if (nav) nav.href = primaryHref;
+
+    // Highlight the matching platform card and announce the detection.
+    var recId = isWindows ? 'card-windows' : 'card-macos';
+    var recCard = document.getElementById(recId);
+    if (recCard) recCard.classList.add('is-rec');
+    var banner = document.getElementById('dl-banner');
+    if (banner) {
+      banner.innerHTML =
+        '<span class="ring"></span> ' +
+        (isWindows
+          ? 'Looks like you’re on Windows — the installer is recommended.'
+          : 'Looks like you’re on macOS — the .dmg is recommended.');
+    }
   })();
 </script>
 
