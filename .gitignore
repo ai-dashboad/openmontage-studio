@@ -54,3 +54,6 @@ remotion-composer/out/
 
 # Generated narration staged for Remotion renders
 remotion-composer/public/studio_narration.wav
+
+# wrangler cache (created when deploying from repo root)
+.wrangler/
