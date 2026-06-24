@@ -341,6 +341,51 @@ const Vignette: React.FC = () => (
   />
 );
 
+// Animated film grain — the single biggest "this looks shot, not slideshow"
+// cue. Cheap SVG fractal noise blended over everything, reseeded each frame so
+// it shimmers like real grain.
+const FilmGrain: React.FC<{ opacity?: number }> = ({ opacity = 0.07 }) => {
+  const frame = useCurrentFrame();
+  const seed = frame % 12;
+  return (
+    <AbsoluteFill style={{ pointerEvents: "none", opacity, mixBlendMode: "overlay" }}>
+      <svg width="100%" height="100%" preserveAspectRatio="none">
+        <filter id="omgrain">
+          <feTurbulence
+            type="fractalNoise"
+            baseFrequency="0.85"
+            numOctaves={2}
+            seed={seed}
+            stitchTiles="stitch"
+          />
+        </filter>
+        <rect width="100%" height="100%" filter="url(#omgrain)" />
+      </svg>
+    </AbsoluteFill>
+  );
+};
+
+// A deeper, off-center cinematic vignette + subtle top/bottom darkening for a
+// filmic, anamorphic feel.
+const CinematicVignette: React.FC = () => (
+  <>
+    <AbsoluteFill
+      style={{
+        pointerEvents: "none",
+        background:
+          "radial-gradient(ellipse 130% 100% at 50% 42%, transparent 52%, rgba(0,0,0,0.5) 100%)",
+      }}
+    />
+    <AbsoluteFill
+      style={{
+        pointerEvents: "none",
+        background:
+          "linear-gradient(180deg, rgba(0,0,0,0.35) 0%, transparent 18%, transparent 82%, rgba(0,0,0,0.4) 100%)",
+      }}
+    />
+  </>
+);
+
 // ---------------------------------------------------------------------------
 // Enhanced Image Scene — spring physics, parallax, variety
 // ---------------------------------------------------------------------------
@@ -594,7 +639,11 @@ const SceneRenderer: React.FC<{ cut: Cut; theme: ThemeConfig }> = ({ cut, theme 
   }
   if (cut.type === "hero_title" && cut.text) {
     return maybeWrapWithBg(
-      <HeroTitle title={cut.text} subtitle={cut.heroSubtitle || cut.subtitle} />
+      <HeroTitle
+        title={cut.text}
+        subtitle={cut.heroSubtitle || cut.subtitle}
+        accent={accent}
+      />
     );
   }
   if (cut.type === "terminal_scene" && cut.steps) {
@@ -819,6 +868,10 @@ export const Explainer: React.FC<ExplainerProps> = (props) => {
           backgroundColor={theme.captionBackgroundColor}
         />
       )}
+
+      {/* Layer 5: cinematic film treatment over all visuals */}
+      <CinematicVignette />
+      <FilmGrain />
 
       {/* Layer 4: Audio — narration */}
       {audio?.narration?.src && (
