@@ -1,5 +1,15 @@
 {
   "version": "1.1.0",
   "url": "https://get.opencli.ai/download/OpenMontageStudio.dmg",
-  "notes": "Studio overhaul: live scene editing, cinematic Remotion renders, data-driven charts, dual-track timeline. Now signed & notarized."
+  "notes": "Studio overhaul: live scene editing, cinematic Remotion renders, data-driven charts, dual-track timeline. Now signed & notarized.",
+  "macos": {
+    "version": "1.1.0",
+    "url": "https://get.opencli.ai/download/OpenMontageStudio.dmg"
+  },
+  "windows": {
+    "version": "1.1.1",
+    "installer": "https://get.opencli.ai/download/OpenMontageStudio-setup.exe",
+    "portable": "https://get.opencli.ai/download/OpenMontageStudio-windows-x64.zip",
+    "notes": "First Windows build: cross-platform narration (Windows SAPI), ffmpeg + Remotion render. Unsigned installer — Windows SmartScreen may warn on first launch."
+  }
 }
