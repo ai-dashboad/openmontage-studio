@@ -100,7 +100,7 @@
     <a href="#how">How it works</a>
     <a href="#features">Features</a>
     <a href="#showcase">Showcase</a>
-    <a class="btn btn-ghost" style="padding:8px 16px" href="https://get.opencli.ai/download/OpenMontageStudio.dmg">Download</a>
+    <a class="btn btn-ghost" id="dl-nav" style="padding:8px 16px" href="/download/OpenMontageStudio.dmg">Download</a>
   </div>
 </div></nav>
 
@@ -112,10 +112,10 @@
     <h1>The AI video studio.<br><span class="grad-text">Describe it. Ship the video.</span></h1>
     <p class="sub">An AI agent turns your idea into a scene plan. You edit each beat and approve it. It renders a finished, narrated, cinematic explainer — all locally, in minutes.</p>
     <div class="cta">
-      <a class="btn btn-primary" href="https://get.opencli.ai/download/OpenMontageStudio.dmg">⬇ Download for macOS</a>
+      <a class="btn btn-primary dl-primary" href="/download/OpenMontageStudio.dmg">⬇ Download for macOS</a>
       <a class="btn btn-ghost" href="#how">See how it works</a>
     </div>
-    <div class="cta-note">Free · Apple-notarized · Updates itself · Apple Silicon &amp; Intel</div>
+    <div class="cta-note"><span class="dl-secondary"></span>Free · runs locally · macOS &amp; Windows</div>
   </div>
 
   <div class="shot wrap">
@@ -179,8 +179,9 @@
     <div class="glow" style="width:480px;height:300px;background:#A78BFA;top:-80px;left:50%;transform:translateX(-50%)"></div>
     <div style="position:relative;z-index:1">
       <div class="h2" style="font-size:clamp(30px,4.5vw,46px)">Make your next video in minutes.</div>
-      <p class="lead" style="margin:14px auto 0;text-align:center">Free to download. Runs on your Mac.</p>
-      <div class="cta" style="margin-top:28px"><a class="btn btn-primary" href="https://get.opencli.ai/download/OpenMontageStudio.dmg">⬇ Download for macOS</a></div>
+      <p class="lead" style="margin:14px auto 0;text-align:center">Free to download. Runs on your machine — macOS &amp; Windows.</p>
+      <div class="cta" style="margin-top:28px"><a class="btn btn-primary dl-primary" href="/download/OpenMontageStudio.dmg">⬇ Download for macOS</a></div>
+      <div class="cta-note" style="text-align:center"><span class="dl-secondary"></span></div>
     </div>
   </div></div>
 </section>
@@ -189,6 +190,34 @@
   <div class="logo" style="font-size:15px"><span class="dot"></span> OpenMontage Studio</div>
   <div>Built on Cloudflare · <a class="grad-text" href="mailto:hello@opencli.ai">hello@opencli.ai</a></div>
 </div></footer>
+
+<script>
+  // Make the primary download match the visitor's OS, and offer the other.
+  (function () {
+    var DMG = '/download/OpenMontageStudio.dmg';
+    var EXE = '/download/OpenMontageStudio-setup.exe';
+    var ua = navigator.userAgent || '';
+    var plat = (navigator.userAgentData && navigator.userAgentData.platform) || '';
+    var isWindows = /Windows/i.test(plat) || /Windows|Win64|Win32/i.test(ua);
+
+    var primaryHref = isWindows ? EXE : DMG;
+    var primaryLabel = isWindows ? '⬇ Download for Windows' : '⬇ Download for macOS';
+    var otherHref = isWindows ? DMG : EXE;
+    var otherLabel = isWindows ? 'macOS (.dmg)' : 'Windows installer (.exe)';
+
+    document.querySelectorAll('.dl-primary').forEach(function (a) {
+      a.href = primaryHref;
+      a.textContent = primaryLabel;
+    });
+    document.querySelectorAll('.dl-secondary').forEach(function (s) {
+      s.innerHTML =
+        'Also for <a href="' + otherHref +
+        '" style="color:var(--cyan)">' + otherLabel + '</a> · ';
+    });
+    var nav = document.getElementById('dl-nav');
+    if (nav) nav.href = primaryHref;
+  })();
+</script>
 
 </body>
 </html>
