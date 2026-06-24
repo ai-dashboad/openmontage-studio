@@ -12,6 +12,7 @@ class AccountSession {
     required this.resendVerification,
     required this.changePassword,
     required this.deleteAccount,
+    required this.referral,
   });
 
   final Account account;
@@ -20,4 +21,7 @@ class AccountSession {
   final Future<void> Function() resendVerification;
   final Future<void> Function(String current, String next) changePassword;
   final Future<void> Function() deleteAccount;
+
+  /// Fetches the user's referral status (code, invite count, unlocked rewards).
+  final Future<ReferralStatus> Function() referral;
 }

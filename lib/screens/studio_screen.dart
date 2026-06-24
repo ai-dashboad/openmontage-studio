@@ -38,6 +38,7 @@ class StudioScreen extends StatefulWidget {
     this.initialStage = 2,
     this.voice = 'Samantha',
     this.runtime = 'ffmpeg',
+    this.branding = true,
     this.brief,
     this.scenes = MockProject.scenes,
     this.onHome,
@@ -57,6 +58,10 @@ class StudioScreen extends StatefulWidget {
   final int initialStage;
   final String voice;
   final String runtime;
+
+  /// Whether the branded end card is appended to renders. Turned off once the
+  /// user unlocks the "remove branding" referral reward.
+  final bool branding;
 
   /// The brief the user typed on the home screen, if any — seeds the agent
   /// conversation so the studio continues the same thread.
@@ -512,6 +517,7 @@ class _StudioScreenState extends State<StudioScreen>
       projectName: _projectName,
       voice: _voice,
       runtime: _runtime,
+      branding: widget.branding,
       onComplete: (result) {
         _renderPath = result.path;
         _renderSeconds = result.seconds;

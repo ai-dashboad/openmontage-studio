@@ -14,6 +14,7 @@ class Account {
     this.useCase,
     this.country,
     this.emailVerified = false,
+    this.referralCode,
   });
 
   final String id;
@@ -30,6 +31,9 @@ class Account {
   /// Whether the email address has been confirmed.
   final bool emailVerified;
 
+  /// The user's shareable referral code (null until first issued server-side).
+  final String? referralCode;
+
   factory Account.fromJson(Map<String, dynamic> json) => Account(
     id: json['id'] as String,
     email: json['email'] as String,
@@ -40,6 +44,58 @@ class Account {
     useCase: json['use_case'] as String?,
     country: json['country'] as String?,
     emailVerified: json['email_verified'] == true,
+    referralCode: json['referral_code'] as String?,
+  );
+}
+
+/// A reward unlocked (or to be unlocked) by inviting friends.
+class ReferralTier {
+  const ReferralTier({required this.at, required this.key, required this.label});
+  final int at;
+  final String key;
+  final String label;
+
+  factory ReferralTier.fromJson(Map<String, dynamic> json) => ReferralTier(
+    at: (json['at'] as num).toInt(),
+    key: json['key'] as String,
+    label: json['label'] as String,
+  );
+}
+
+/// The signed-in user's referral standing: their code/link, how many people
+/// they've brought in, and which rewards that unlocks.
+class ReferralStatus {
+  const ReferralStatus({
+    required this.code,
+    required this.link,
+    required this.invited,
+    required this.unlocks,
+    required this.tiers,
+    this.next,
+  });
+
+  final String code;
+  final String link;
+  final int invited;
+  final List<String> unlocks;
+  final List<ReferralTier> tiers;
+  final ReferralTier? next;
+
+  bool hasUnlock(String key) => unlocks.contains(key);
+
+  factory ReferralStatus.fromJson(Map<String, dynamic> json) => ReferralStatus(
+    code: json['code'] as String,
+    link: json['link'] as String,
+    invited: (json['invited'] as num?)?.toInt() ?? 0,
+    unlocks: ((json['unlocks'] as List?) ?? const [])
+        .map((e) => e.toString())
+        .toList(),
+    tiers: ((json['tiers'] as List?) ?? const [])
+        .map((e) => ReferralTier.fromJson(e as Map<String, dynamic>))
+        .toList(),
+    next: json['next'] == null
+        ? null
+        : ReferralTier.fromJson(json['next'] as Map<String, dynamic>),
   );
 }
 
@@ -69,6 +125,7 @@ class AuthClient {
     String? marketingSource,
     String? useCase,
     String? locale,
+    String? ref,
   }) {
     return _session('/auth/register', {
       'email': email,
@@ -79,6 +136,7 @@ class AuthClient {
         'marketing_source': marketingSource,
       if (useCase != null && useCase.isNotEmpty) 'use_case': useCase,
       if (locale != null && locale.isNotEmpty) 'locale': locale,
+      if (ref != null && ref.trim().isNotEmpty) 'ref': ref.trim(),
     });
   }
 
@@ -147,6 +205,21 @@ class AuthClient {
       token: json['token'] as String,
       account: Account.fromJson(json['user'] as Map<String, dynamic>),
     );
+  }
+
+  /// Fetches the signed-in user's referral status (code, invite count, unlocks).
+  Future<ReferralStatus> referral(String token) async {
+    final res = await _http
+        .get(
+          Uri.parse('$baseUrl/referral'),
+          headers: {'Authorization': 'Bearer $token'},
+        )
+        .timeout(const Duration(seconds: 15));
+    final json = jsonDecode(res.body) as Map<String, dynamic>;
+    if (res.statusCode != 200) {
+      throw AuthException((json['error'] as String?) ?? 'could not load referral');
+    }
+    return ReferralStatus.fromJson(json);
   }
 
   /// Resolves the account for a session token, or null if it's invalid.

@@ -33,6 +33,7 @@ class _AuthScreenState extends State<AuthScreen> {
   final _password = TextEditingController();
   final _name = TextEditingController();
   final _useCase = TextEditingController();
+  final _invite = TextEditingController();
   String? _source;
   bool _consent = false;
 
@@ -50,6 +51,7 @@ class _AuthScreenState extends State<AuthScreen> {
     _password.dispose();
     _name.dispose();
     _useCase.dispose();
+    _invite.dispose();
     super.dispose();
   }
 
@@ -77,6 +79,7 @@ class _AuthScreenState extends State<AuthScreen> {
               marketingSource: _consent ? _source : null,
               useCase: _useCase.text.trim(),
               locale: _locale(),
+              ref: _invite.text.trim(),
             )
           : await widget.authClient.login(
               email: _email.text.trim(),
@@ -224,6 +227,9 @@ class _AuthScreenState extends State<AuthScreen> {
                     _useCaseField(),
                     const SizedBox(height: 10),
                     _sourceField(),
+                    const SizedBox(height: 10),
+                    _field(_invite, 'Invite code (optional)',
+                        Icons.card_giftcard),
                     const SizedBox(height: 12),
                     _consentTile(),
                   ] else

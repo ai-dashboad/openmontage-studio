@@ -51,6 +51,57 @@ interface UserRow {
   oauth_id: string | null;
   email_verified: number;
   verified_at: string | null;
+  referral_code: string | null;
+  referred_by: string | null;
+}
+
+// "Invite to unlock" milestones. Inviting N friends who sign up unlocks a
+// reward. Money never flows up a chain — this is a referral loop, not an MLM.
+const REFERRAL_TIERS: { at: number; key: string; label: string }[] = [
+  { at: 1, key: 'premium_voices', label: 'Premium cloud voices' },
+  { at: 3, key: 'no_branding', label: 'Remove the end card' },
+  { at: 5, key: 'pro_templates', label: 'Pro template pack' },
+];
+
+function unlocksFor(count: number): string[] {
+  return REFERRAL_TIERS.filter((t) => count >= t.at).map((t) => t.key);
+}
+
+function nextTier(count: number): { at: number; key: string; label: string } | null {
+  return REFERRAL_TIERS.find((t) => count < t.at) ?? null;
+}
+
+// A short, human-friendly, unambiguous code (no 0/O/1/I/L).
+function newReferralCode(): string {
+  const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  const bytes = crypto.getRandomValues(new Uint8Array(6));
+  let s = '';
+  for (const b of bytes) s += alphabet[b % alphabet.length];
+  return s;
+}
+
+async function uniqueReferralCode(env: Env): Promise<string> {
+  for (let i = 0; i < 6; i++) {
+    const code = newReferralCode();
+    const clash = await env.DB.prepare(
+      'SELECT id FROM users WHERE referral_code = ?',
+    )
+      .bind(code)
+      .first();
+    if (!clash) return code;
+  }
+  return newReferralCode();
+}
+
+// Backfills a referral code for users created before referrals existed.
+async function ensureReferralCode(env: Env, row: UserRow): Promise<string> {
+  if (row.referral_code) return row.referral_code;
+  const code = await uniqueReferralCode(env);
+  await env.DB.prepare('UPDATE users SET referral_code = ? WHERE id = ?')
+    .bind(code, row.id)
+    .run();
+  row.referral_code = code;
+  return code;
 }
 
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
@@ -158,6 +209,7 @@ function publicUser(row: UserRow) {
     use_case: row.use_case,
     country: row.country,
     email_verified: row.email_verified === 1,
+    referral_code: row.referral_code,
   };
 }
 
@@ -268,11 +320,26 @@ async function register(request: Request, env: Env): Promise<Response> {
   const id = crypto.randomUUID();
   const passwordHash = await hashPassword(password);
 
+  // Referral attribution: if a valid code was supplied, link the new account to
+  // its referrer. Give the new account its own shareable code too.
+  const refCode = body.ref ? String(body.ref).trim().toUpperCase().slice(0, 12) : null;
+  let referredBy: string | null = null;
+  if (refCode) {
+    const referrer = await env.DB.prepare(
+      'SELECT id FROM users WHERE referral_code = ?',
+    )
+      .bind(refCode)
+      .first<{ id: string }>();
+    if (referrer && referrer.id !== id) referredBy = referrer.id;
+  }
+  const myReferralCode = await uniqueReferralCode(env);
+
   await env.DB.prepare(
     `INSERT INTO users
        (id, email, name, password_hash, created_at,
-        marketing_consent, consent_at, marketing_source, use_case, country, locale)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        marketing_consent, consent_at, marketing_source, use_case, country, locale,
+        referral_code, referred_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       id,
@@ -286,6 +353,8 @@ async function register(request: Request, env: Env): Promise<Response> {
       useCase,
       geoCountry(request),
       locale,
+      myReferralCode,
+      referredBy,
     )
     .run();
 
@@ -330,6 +399,32 @@ async function me(request: Request, env: Env): Promise<Response> {
   const row = await loadUser(env, userId);
   if (!row) return json({ error: 'user not found' }, 404);
   return json({ user: publicUser(row) });
+}
+
+// Referral status for the signed-in user: their shareable code/link, how many
+// people they have brought in, and which rewards that unlocks.
+async function referral(request: Request, env: Env): Promise<Response> {
+  const userId = await userIdFromSession(request, env);
+  if (!userId) return json({ error: 'invalid session' }, 401);
+  const row = await loadUser(env, userId);
+  if (!row) return json({ error: 'user not found' }, 404);
+
+  const code = await ensureReferralCode(env, row);
+  const counted = await env.DB.prepare(
+    'SELECT COUNT(*) AS n FROM users WHERE referred_by = ?',
+  )
+    .bind(userId)
+    .first<{ n: number }>();
+  const invited = counted?.n ?? 0;
+
+  return json({
+    code,
+    link: `https://get.opencli.ai/?ref=${code}`,
+    invited,
+    unlocks: unlocksFor(invited),
+    next: nextTier(invited),
+    tiers: REFERRAL_TIERS,
+  });
 }
 
 // Update name and marketing fields. Setting marketing_consent=false is the
@@ -763,6 +858,9 @@ export default {
       }
       if (method === 'POST' && pathname === '/auth/login') {
         return await login(request, env);
+      }
+      if (method === 'GET' && pathname === '/referral') {
+        return await referral(request, env);
       }
       if (method === 'GET' && pathname === '/auth/me') {
         return await me(request, env);

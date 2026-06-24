@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../auth/account_session.dart';
 import '../models/catalog.dart';
-import '../services/auth_client.dart' show AuthException;
+import '../services/auth_client.dart'
+    show AuthException, ReferralStatus, ReferralTier;
 import '../services/media_settings.dart';
 import '../services/voice_settings.dart';
 import '../theme/app_theme.dart';
@@ -42,6 +44,8 @@ class SettingsScreen extends StatelessWidget {
               const SizedBox(height: 24),
               if (session != null) ...[
                 _AccountCard(session: session!),
+                const SizedBox(height: 20),
+                _InviteCard(session: session!),
                 const SizedBox(height: 20),
               ],
               if (voiceSettings != null) ...[
@@ -696,6 +700,224 @@ class _MediaSourceCardState extends State<_MediaSourceCard> {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// "Invite to unlock" card: shows the user's referral link, how many friends
+/// have joined, and the rewards each milestone unlocks. Sharing is the growth
+/// loop — every invite that signs up moves the bar and unlocks features.
+class _InviteCard extends StatefulWidget {
+  const _InviteCard({required this.session});
+  final AccountSession session;
+
+  @override
+  State<_InviteCard> createState() => _InviteCardState();
+}
+
+class _InviteCardState extends State<_InviteCard> {
+  ReferralStatus? _status;
+  String? _error;
+  bool _copied = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.session.referral().then((s) {
+      if (mounted) setState(() => _status = s);
+    }).catchError((_) {
+      if (mounted) setState(() => _error = 'Could not load your invite status.');
+    });
+  }
+
+  Future<void> _copy() async {
+    final link = _status?.link;
+    if (link == null) return;
+    await Clipboard.setData(ClipboardData(text: link));
+    if (!mounted) return;
+    setState(() => _copied = true);
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _copied = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = _status;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.accentPurple.withValues(alpha: 0.4)),
+        gradient: LinearGradient(
+          colors: [
+            AppColors.accentPurple.withValues(alpha: 0.10),
+            AppColors.surface,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.card_giftcard, size: 18, color: AppColors.accentPurple),
+              SizedBox(width: 8),
+              Text(
+                'Invite friends, unlock rewards',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Share your link. When a friend installs and signs up, you both win '
+            '— each milestone unlocks a feature.',
+            style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+          ),
+          const SizedBox(height: 14),
+          if (_error != null)
+            Text(
+              _error!,
+              style: const TextStyle(color: AppColors.accentAmber, fontSize: 12),
+            )
+          else if (s == null)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.accentPurple,
+                ),
+              ),
+            )
+          else ...[
+            // The shareable link + copy button.
+            Container(
+              padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      s.link,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTheme.mono.copyWith(
+                        color: AppColors.textPrimary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  FilledButton.icon(
+                    onPressed: _copy,
+                    icon: Icon(_copied ? Icons.check : Icons.copy, size: 15),
+                    label: Text(_copied ? 'Copied' : 'Copy'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.accentPurple,
+                      foregroundColor: AppColors.background,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            _progressLine(s),
+            const SizedBox(height: 12),
+            for (final tier in s.tiers) _tierRow(tier, s),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _progressLine(ReferralStatus s) {
+    final next = s.next;
+    final target = next?.at ?? (s.tiers.isEmpty ? 1 : s.tiers.last.at);
+    final fraction = target == 0 ? 1.0 : (s.invited / target).clamp(0.0, 1.0);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              '${s.invited} ${s.invited == 1 ? "friend" : "friends"} joined',
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const Spacer(),
+            if (next != null)
+              Text(
+                '${next.at - s.invited} more → ${next.label}',
+                style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+              )
+            else
+              const Text(
+                'All rewards unlocked 🎉',
+                style: TextStyle(color: AppColors.accentGreen, fontSize: 12),
+              ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: fraction,
+            minHeight: 6,
+            backgroundColor: AppColors.surfaceHigh,
+            valueColor: const AlwaysStoppedAnimation(AppColors.accentPurple),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _tierRow(ReferralTier tier, ReferralStatus s) {
+    final unlocked = s.unlocks.contains(tier.key);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(
+            unlocked ? Icons.check_circle : Icons.lock_outline,
+            size: 16,
+            color: unlocked ? AppColors.accentGreen : AppColors.textFaint,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            tier.label,
+            style: TextStyle(
+              color: unlocked ? AppColors.textPrimary : AppColors.textMuted,
+              fontSize: 13,
+            ),
+          ),
+          const Spacer(),
+          Text(
+            '${tier.at} ${tier.at == 1 ? "invite" : "invites"}',
+            style: AppTheme.mono.copyWith(
+              color: AppColors.textFaint,
+              fontSize: 11,
+            ),
+          ),
         ],
       ),
     );
