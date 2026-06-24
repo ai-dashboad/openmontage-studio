@@ -75,9 +75,10 @@ class RenderClient {
   /// Render runtimes available here: ffmpeg always, Remotion when its composer
   /// (with installed deps) and `npx` are present.
   Future<List<String>> runtimes() async {
-    final list = <String>['ffmpeg'];
-    if (await _remotionAvailable()) list.add('remotion');
-    return list;
+    // Prefer Remotion (cinematic) when available — it leads the list so the
+    // studio defaults to it; ffmpeg remains the fast, always-available fallback.
+    if (await _remotionAvailable()) return const ['remotion', 'ffmpeg'];
+    return const ['ffmpeg'];
   }
 
   /// Renders [scenes] to an MP4 using [runtime] ("ffmpeg" or "remotion"),
@@ -483,6 +484,17 @@ class RenderClient {
       'cuts': cuts,
       'audio': {
         'narration': {'src': narrName},
+        // A bundled, royalty-free cinematic bed, kept low and auto-ducked under
+        // narration, plus a transition whoosh at each cut. These elevate the
+        // perceived production value more than any single visual change.
+        'music': {
+          'src': 'audio/cinematic-bed.mp3',
+          'volume': 0.12,
+          'fadeInSeconds': 1.5,
+          'fadeOutSeconds': 2.5,
+          'loop': true,
+        },
+        'sfxTransition': {'src': 'audio/whoosh.mp3', 'volume': 0.4},
       },
     };
     final propsPath = '${work.path}/rm_props.json';
