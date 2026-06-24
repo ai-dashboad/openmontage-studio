@@ -140,4 +140,42 @@ void main() {
     expect(status.next?.label, 'Remove the end card');
     expect(status.tiers.length, 2);
   });
+
+  test('consumeCredit allows and reports the new balance', () async {
+    final client = AuthClient(
+      httpClient: MockClient(
+        (req) async => http.Response(
+          jsonEncode({'allowed': true, 'credits': 4, 'plan': 'free'}),
+          200,
+        ),
+      ),
+    );
+    final result = await client.consumeCredit('tok');
+    expect(result.allowed, isTrue);
+    expect(result.status.credits, 4);
+  });
+
+  test('consumeCredit signals the paywall on HTTP 402', () async {
+    final client = AuthClient(
+      httpClient: MockClient(
+        (req) async => http.Response(
+          jsonEncode({'allowed': false, 'credits': 0, 'plan': 'free'}),
+          402,
+        ),
+      ),
+    );
+    final result = await client.consumeCredit('tok');
+    expect(result.allowed, isFalse);
+    expect(result.status.credits, 0);
+  });
+
+  test('billingCheckoutUrl returns null when billing is unconfigured', () async {
+    final client = AuthClient(
+      httpClient: MockClient(
+        (req) async =>
+            http.Response(jsonEncode({'error': 'billing not configured'}), 501),
+      ),
+    );
+    expect(await client.billingCheckoutUrl('tok'), isNull);
+  });
 }

@@ -13,6 +13,10 @@ class AccountSession {
     required this.changePassword,
     required this.deleteAccount,
     required this.referral,
+    required this.credits,
+    required this.consumeCredit,
+    required this.shareUnlock,
+    required this.checkoutUrl,
   });
 
   final Account account;
@@ -24,4 +28,16 @@ class AccountSession {
 
   /// Fetches the user's referral status (code, invite count, unlocked rewards).
   final Future<ReferralStatus> Function() referral;
+
+  /// Fetches the current credit balance and plan.
+  final Future<CreditStatus> Function() credits;
+
+  /// Consumes one credit for a render; the result says whether it was allowed.
+  final Future<CreditConsumeResult> Function() consumeCredit;
+
+  /// Claims the "share on X" reward (+credits), returning the new balance.
+  final Future<CreditStatus> Function() shareUnlock;
+
+  /// Starts Pro checkout; returns the URL, or null if billing isn't configured.
+  final Future<String?> Function() checkoutUrl;
 }

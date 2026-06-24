@@ -3,8 +3,10 @@ import 'dart:io';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import '../auth/account_session.dart';
 import '../models/studio_models.dart';
 import '../services/agent_service.dart';
+import '../services/auth_client.dart';
 import '../services/conversation.dart';
 import '../services/media_settings.dart';
 import '../services/project_store.dart';
@@ -14,6 +16,7 @@ import '../services/tts_client.dart';
 import '../theme/app_theme.dart';
 import '../widgets/inspector.dart';
 import '../widgets/left_rail.dart';
+import '../widgets/paywall_sheet.dart';
 import '../widgets/preview_stage.dart';
 import '../widgets/render_dialog.dart';
 import '../widgets/side_panel.dart';
@@ -39,6 +42,7 @@ class StudioScreen extends StatefulWidget {
     this.voice = 'Samantha',
     this.runtime = 'ffmpeg',
     this.branding = true,
+    this.session,
     this.brief,
     this.scenes = MockProject.scenes,
     this.onHome,
@@ -62,6 +66,11 @@ class StudioScreen extends StatefulWidget {
   /// Whether the branded end card is appended to renders. Turned off once the
   /// user unlocks the "remove branding" referral reward.
   final bool branding;
+
+  /// The signed-in session, used to meter renders against the free credit
+  /// allowance and show the paywall. Null in tests / unauthenticated builds,
+  /// where rendering is never metered.
+  final AccountSession? session;
 
   /// The brief the user typed on the home screen, if any — seeds the agent
   /// conversation so the studio continues the same thread.
@@ -112,6 +121,9 @@ class _StudioScreenState extends State<StudioScreen>
   bool _narrating = false;
   bool _revising = false;
   bool _fetchingImages = false;
+
+  /// The signed-in user's credit balance (null until loaded / when unmetered).
+  CreditStatus? _credits;
 
   String get _stageName => MockProject.stages[_stage].name;
   bool get _atCompose => _stageName == 'compose';
@@ -165,8 +177,28 @@ class _StudioScreenState extends State<StudioScreen>
     widget.mediaSettings.load().then((_) {
       if (mounted) setState(() {});
     });
+    // Load the credit balance so the top bar shows renders remaining.
+    _refreshCredits();
     // Persist an initial record so the project shows up immediately.
     _save();
+  }
+
+  Future<void> _refreshCredits() async {
+    final session = widget.session;
+    if (session == null) return;
+    try {
+      final c = await session.credits();
+      if (mounted) setState(() => _credits = c);
+    } catch (_) {
+      // Best-effort; the top bar simply omits the credit chip.
+    }
+  }
+
+  /// A short label for the top-bar credit chip, or null when unmetered/Pro.
+  String? get _creditsLabel {
+    final c = _credits;
+    if (c == null || c.isPro) return c?.isPro == true ? 'Pro' : null;
+    return '${c.credits} free ${c.credits == 1 ? "render" : "renders"} left';
   }
 
   @override
@@ -508,7 +540,37 @@ class _StudioScreenState extends State<StudioScreen>
         });
   }
 
-  void _openRender() {
+  Future<void> _openRender() async {
+    // Meter against the free credit allowance when signed in. A network error
+    // fails open (never block a render over a connectivity blip).
+    final session = widget.session;
+    if (session != null) {
+      try {
+        var result = await session.consumeCredit();
+        if (!result.allowed) {
+          if (!mounted) return;
+          final gained = await showPaywallSheet(
+            context,
+            session: session,
+            status: result.status,
+          );
+          if (gained != true) {
+            await _refreshCredits();
+            return; // user didn't unlock more renders
+          }
+          // They earned credits via sharing — try once more.
+          result = await session.consumeCredit();
+          if (!result.allowed) {
+            await _refreshCredits();
+            return;
+          }
+        }
+        if (mounted) setState(() => _credits = result.status);
+      } catch (_) {
+        // fail open
+      }
+    }
+    if (!mounted) return;
     showRenderDialog(
       context,
       client: widget.render,
@@ -677,6 +739,7 @@ class _StudioScreenState extends State<StudioScreen>
           TopBar(
             projectName: _projectName,
             provider: widget.provider,
+            creditsLabel: _creditsLabel,
             imagesEnabled: widget.mediaSettings.isActive,
             fetchingImages: _fetchingImages,
             onFetchImages: _fetchImages,

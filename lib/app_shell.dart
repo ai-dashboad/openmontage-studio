@@ -153,6 +153,7 @@ class _AppShellState extends State<AppShell> {
         voice: _projectVoice,
         runtime: _projectRuntime,
         branding: _branding,
+        session: widget.session,
         brief: _brief,
         scenes: _scenes,
         onHome: () => _go(AppView.home),

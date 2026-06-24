@@ -99,6 +99,48 @@ class ReferralStatus {
   );
 }
 
+/// The signed-in user's credit balance and plan (freemium). Free accounts spend
+/// one credit per render; `isPro` accounts render without limit.
+class CreditStatus {
+  const CreditStatus({
+    required this.credits,
+    required this.plan,
+    required this.isPro,
+    required this.freeAllowance,
+    required this.shareReward,
+    required this.shareUnlocksUsed,
+    required this.shareUnlocksMax,
+  });
+
+  final int credits;
+  final String plan;
+  final bool isPro;
+  final int freeAllowance;
+  final int shareReward;
+  final int shareUnlocksUsed;
+  final int shareUnlocksMax;
+
+  bool get canShareUnlock => shareUnlocksUsed < shareUnlocksMax;
+
+  factory CreditStatus.fromJson(Map<String, dynamic> json) => CreditStatus(
+    credits: (json['credits'] as num?)?.toInt() ?? 0,
+    plan: (json['plan'] as String?) ?? 'free',
+    isPro: json['is_pro'] == true || json['plan'] == 'pro',
+    freeAllowance: (json['free_allowance'] as num?)?.toInt() ?? 0,
+    shareReward: (json['share_reward'] as num?)?.toInt() ?? 0,
+    shareUnlocksUsed: (json['share_unlocks_used'] as num?)?.toInt() ?? 0,
+    shareUnlocksMax: (json['share_unlocks_max'] as num?)?.toInt() ?? 0,
+  );
+}
+
+/// The result of consuming a credit for a render: whether it was allowed and the
+/// resulting balance (so the app shows the paywall when [allowed] is false).
+class CreditConsumeResult {
+  const CreditConsumeResult({required this.allowed, required this.status});
+  final bool allowed;
+  final CreditStatus status;
+}
+
 /// A session: the account plus its bearer token.
 class Session {
   const Session({required this.token, required this.account});
@@ -220,6 +262,72 @@ class AuthClient {
       throw AuthException((json['error'] as String?) ?? 'could not load referral');
     }
     return ReferralStatus.fromJson(json);
+  }
+
+  /// The signed-in user's current credit balance and plan.
+  Future<CreditStatus> credits(String token) async {
+    final res = await _http
+        .get(
+          Uri.parse('$baseUrl/credits'),
+          headers: {'Authorization': 'Bearer $token'},
+        )
+        .timeout(const Duration(seconds: 15));
+    final json = jsonDecode(res.body) as Map<String, dynamic>;
+    if (res.statusCode != 200) {
+      throw AuthException((json['error'] as String?) ?? 'could not load credits');
+    }
+    return CreditStatus.fromJson(json);
+  }
+
+  /// Consumes one credit for a render. Returns whether it was allowed plus the
+  /// new balance — a disallowed result (HTTP 402) signals the paywall.
+  Future<CreditConsumeResult> consumeCredit(String token) async {
+    final res = await _http
+        .post(
+          Uri.parse('$baseUrl/credits/consume'),
+          headers: {'Authorization': 'Bearer $token'},
+        )
+        .timeout(const Duration(seconds: 15));
+    if (res.statusCode != 200 && res.statusCode != 402) {
+      throw const AuthException('could not check credits');
+    }
+    final json = jsonDecode(res.body) as Map<String, dynamic>;
+    return CreditConsumeResult(
+      allowed: json['allowed'] == true,
+      status: CreditStatus.fromJson(json),
+    );
+  }
+
+  /// Claims the "share on X" reward (+credits), up to the per-account cap.
+  Future<CreditStatus> shareUnlock(String token) async {
+    final res = await _http
+        .post(
+          Uri.parse('$baseUrl/credits/share-unlock'),
+          headers: {'Authorization': 'Bearer $token'},
+        )
+        .timeout(const Duration(seconds: 15));
+    final json = jsonDecode(res.body) as Map<String, dynamic>;
+    if (res.statusCode != 200) {
+      throw AuthException((json['error'] as String?) ?? 'reward unavailable');
+    }
+    return CreditStatus.fromJson(json);
+  }
+
+  /// Starts a Pro checkout and returns its URL, or null if billing isn't
+  /// configured yet (HTTP 501) so the app can degrade gracefully.
+  Future<String?> billingCheckoutUrl(String token) async {
+    final res = await _http
+        .post(
+          Uri.parse('$baseUrl/billing/checkout'),
+          headers: {'Authorization': 'Bearer $token'},
+        )
+        .timeout(const Duration(seconds: 20));
+    if (res.statusCode == 501) return null; // billing not configured yet
+    final json = jsonDecode(res.body) as Map<String, dynamic>;
+    if (res.statusCode != 200) {
+      throw AuthException((json['error'] as String?) ?? 'checkout failed');
+    }
+    return json['url'] as String?;
   }
 
   /// Resolves the account for a session token, or null if it's invalid.
