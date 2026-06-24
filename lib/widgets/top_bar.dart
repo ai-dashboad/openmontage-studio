@@ -10,6 +10,9 @@ class TopBar extends StatelessWidget {
     this.projectName = 'Untitled video',
     this.provider,
     this.onRetryServices,
+    this.imagesEnabled = false,
+    this.fetchingImages = false,
+    this.onFetchImages,
     this.onHome,
     this.onOpenSettings,
     this.onRender,
@@ -18,6 +21,9 @@ class TopBar extends StatelessWidget {
   final String projectName;
   final ProviderManager? provider;
   final VoidCallback? onRetryServices;
+  final bool imagesEnabled;
+  final bool fetchingImages;
+  final VoidCallback? onFetchImages;
   final VoidCallback? onHome;
   final VoidCallback? onOpenSettings;
   final VoidCallback? onRender;
@@ -64,6 +70,27 @@ class TopBar extends StatelessWidget {
           ],
           const _LocalChip(),
           const SizedBox(width: 16),
+          if (imagesEnabled) ...[
+            OutlinedButton.icon(
+              onPressed: fetchingImages ? null : onFetchImages,
+              icon: fetchingImages
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.accentPurple,
+                      ),
+                    )
+                  : const Icon(Icons.image_outlined, size: 16),
+              label: Text(fetchingImages ? 'Fetching…' : 'Images'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.accentPurple,
+                side: const BorderSide(color: AppColors.border),
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
           FilledButton.icon(
             onPressed: onRender,
             icon: const Icon(Icons.play_arrow, size: 18),

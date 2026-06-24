@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import '../models/studio_models.dart';
 import '../theme/app_theme.dart';
@@ -87,8 +89,23 @@ class _ScenePreview extends StatelessWidget {
           colors: [scene.accent.withValues(alpha: 0.14), AppColors.surface],
         ),
       ),
+      clipBehavior: Clip.antiAlias,
       child: Stack(
+        fit: StackFit.expand,
         children: [
+          // Background image (stock/AI) with a dark scrim for text legibility.
+          if (scene.hasImage) ...[
+            Positioned.fill(
+              child: scene.imageUrl.startsWith('http')
+                  ? Image.network(scene.imageUrl, fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const SizedBox())
+                  : Image.file(File(scene.imageUrl), fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => const SizedBox()),
+            ),
+            Positioned.fill(
+              child: ColoredBox(color: Colors.black.withValues(alpha: 0.55)),
+            ),
+          ],
           Positioned(
             top: 12,
             left: 14,

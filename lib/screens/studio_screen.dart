@@ -6,6 +6,7 @@ import 'package:flutter/scheduler.dart';
 import '../models/studio_models.dart';
 import '../services/agent_service.dart';
 import '../services/conversation.dart';
+import '../services/media_settings.dart';
 import '../services/project_store.dart';
 import '../services/provider_manager.dart';
 import '../services/render_client.dart';
@@ -31,6 +32,7 @@ class StudioScreen extends StatefulWidget {
     required this.render,
     required this.provider,
     required this.projectStore,
+    required this.mediaSettings,
     required this.projectId,
     this.projectName = 'Untitled video',
     this.initialStage = 2,
@@ -47,6 +49,7 @@ class StudioScreen extends StatefulWidget {
   final RenderClient render;
   final ProviderManager provider;
   final ProjectStore projectStore;
+  final MediaSettings mediaSettings;
 
   /// Identity of the project being edited, so edits persist under one record.
   final String projectId;
@@ -103,6 +106,7 @@ class _StudioScreenState extends State<StudioScreen>
 
   bool _narrating = false;
   bool _revising = false;
+  bool _fetchingImages = false;
 
   String get _stageName => MockProject.stages[_stage].name;
   bool get _atCompose => _stageName == 'compose';
@@ -152,6 +156,10 @@ class _StudioScreenState extends State<StudioScreen>
     );
     // One-shot status probe so the top bar reflects reality on entry.
     widget.provider.probe();
+    // Load the media-source choice so the Images action reflects it.
+    widget.mediaSettings.load().then((_) {
+      if (mounted) setState(() {});
+    });
     // Persist an initial record so the project shows up immediately.
     _save();
   }
@@ -568,8 +576,47 @@ class _StudioScreenState extends State<StudioScreen>
             'chartData': [
               for (final d in s.chartData) {'label': d.label, 'value': d.value},
             ],
+          if (s.imageUrl.isNotEmpty) 'imageUrl': s.imageUrl,
         },
     ];
+  }
+
+  /// Fetches a background image for every scene from the selected media source
+  /// (using each scene's image query, falling back to its headline).
+  Future<void> _fetchImages() async {
+    if (_fetchingImages) return;
+    await widget.mediaSettings.load();
+    if (!widget.mediaSettings.isActive) {
+      _toast('Pick an image source in Settings first.');
+      return;
+    }
+    setState(() => _fetchingImages = true);
+    var count = 0;
+    try {
+      for (var i = 0; i < _scenes.length; i++) {
+        final s = _scenes[i];
+        final query = s.imageQuery.isNotEmpty
+            ? s.imageQuery
+            : (s.headline.isNotEmpty ? s.headline : s.title);
+        final image = await widget.mediaSettings.resolve(query);
+        if (image != null && mounted) {
+          setState(() {
+            _scenes[i] = s.copyWith(imageUrl: image.url, imageQuery: query);
+          });
+          count++;
+        }
+      }
+      if (mounted) {
+        _save();
+        _toast(
+          count > 0
+              ? 'Added images to $count scene${count == 1 ? '' : 's'}'
+              : 'No images found — check the source/key in Settings.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _fetchingImages = false);
+    }
   }
 
   Future<void> _generateNarration() async {
@@ -624,6 +671,9 @@ class _StudioScreenState extends State<StudioScreen>
           TopBar(
             projectName: _projectName,
             provider: widget.provider,
+            imagesEnabled: widget.mediaSettings.isActive,
+            fetchingImages: _fetchingImages,
+            onFetchImages: _fetchImages,
             onRetryServices: () async {
               await widget.provider.ensureRunning();
               await widget.provider.probe();

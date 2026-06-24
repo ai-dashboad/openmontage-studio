@@ -58,6 +58,8 @@ class Scene {
     this.headline = '',
     this.subtitle = '',
     this.chartData = const [],
+    this.imageQuery = '',
+    this.imageUrl = '',
   });
 
   final String id;
@@ -72,7 +74,14 @@ class Scene {
   /// Data points for chart scenes (`bar_chart` / `pie_chart`). Empty otherwise.
   final List<ChartDatum> chartData;
 
+  /// Keyword/prompt used to fetch or generate this scene's background image.
+  final String imageQuery;
+
+  /// Resolved background image (a URL or local path), once fetched. Empty = none.
+  final String imageUrl;
+
   double get durationSeconds => endSeconds - startSeconds;
+  bool get hasImage => imageUrl.isNotEmpty;
 
   bool get isChart => type == 'bar_chart' || type == 'pie_chart';
 
@@ -87,6 +96,8 @@ class Scene {
     'subtitle': subtitle,
     if (chartData.isNotEmpty)
       'chartData': [for (final d in chartData) d.toJson()],
+    if (imageQuery.isNotEmpty) 'imageQuery': imageQuery,
+    if (imageUrl.isNotEmpty) 'imageUrl': imageUrl,
   };
 
   static Scene fromJson(Map<String, dynamic> j) => Scene(
@@ -102,6 +113,8 @@ class Scene {
         .whereType<Map<String, dynamic>>()
         .map(ChartDatum.fromJson)
         .toList(),
+    imageQuery: j['imageQuery'] as String? ?? '',
+    imageUrl: j['imageUrl'] as String? ?? '',
   );
 
   /// Returns a copy with the given fields replaced. Editing the inspector flows
@@ -115,6 +128,8 @@ class Scene {
     String? headline,
     String? subtitle,
     List<ChartDatum>? chartData,
+    String? imageQuery,
+    String? imageUrl,
   }) {
     return Scene(
       id: id,
@@ -126,6 +141,8 @@ class Scene {
       headline: headline ?? this.headline,
       subtitle: subtitle ?? this.subtitle,
       chartData: chartData ?? this.chartData,
+      imageQuery: imageQuery ?? this.imageQuery,
+      imageUrl: imageUrl ?? this.imageUrl,
     );
   }
 }
