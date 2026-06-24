@@ -28,5 +28,13 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<!-- Sparkle auto-update (auto_updater plugin). The feed lists releases; the
+	     public key verifies update signatures (private key lives in the keychain). -->
+	<key>SUFeedURL</key>
+	<string>https://get.opencli.ai/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>52oUP8xsm+3okWB9+5fsKNGwRbNjgTvms1r8fW9+ILs=</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
 </dict>
 </plist>

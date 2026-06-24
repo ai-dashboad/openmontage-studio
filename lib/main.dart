@@ -9,6 +9,7 @@ import 'services/render_client.dart';
 import 'services/session_store.dart';
 import 'services/tts_client.dart';
 import 'services/update_checker.dart';
+import 'services/updater.dart';
 import 'theme/app_theme.dart';
 
 void main() {
@@ -18,6 +19,8 @@ void main() {
   final provider = ProviderManager(agent: agent, media: tts);
   // The app drives `say`/ffmpeg/Remotion directly — no server to start. The UI
   // probes tool availability when the home/studio mounts.
+  // Sparkle one-click auto-update (macOS): set the feed + schedule checks.
+  Updater().init();
   runApp(
     OpenMontageStudioApp(
       agentService: agent,
