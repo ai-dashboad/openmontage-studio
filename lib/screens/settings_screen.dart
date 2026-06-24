@@ -3,6 +3,7 @@ import '../auth/account_session.dart';
 import '../models/catalog.dart';
 import '../services/auth_client.dart' show AuthException;
 import '../services/media_settings.dart';
+import '../services/voice_settings.dart';
 import '../theme/app_theme.dart';
 
 /// Providers settings: cloud APIs and local engines, grouped by capability. The
@@ -14,11 +15,13 @@ class SettingsScreen extends StatelessWidget {
     required this.onBack,
     this.session,
     this.mediaSettings,
+    this.voiceSettings,
   });
 
   final VoidCallback onBack;
   final AccountSession? session;
   final MediaSettings? mediaSettings;
+  final VoiceSettings? voiceSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -39,6 +42,10 @@ class SettingsScreen extends StatelessWidget {
               const SizedBox(height: 24),
               if (session != null) ...[
                 _AccountCard(session: session!),
+                const SizedBox(height: 20),
+              ],
+              if (voiceSettings != null) ...[
+                _VoiceSourceCard(voice: voiceSettings!),
                 const SizedBox(height: 20),
               ],
               if (mediaSettings != null) ...[
@@ -687,6 +694,148 @@ class _MediaSourceCardState extends State<_MediaSourceCard> {
                   borderSide: const BorderSide(color: AppColors.accentPurple),
                 ),
               ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Picks the narration engine (OS-native / cloud neural) and stores its API key.
+/// The system voice is always available and free, so narration works with no
+/// setup on macOS, Windows, and Linux; cloud voices are an opt-in upgrade.
+class _VoiceSourceCard extends StatefulWidget {
+  const _VoiceSourceCard({required this.voice});
+  final VoiceSettings voice;
+
+  @override
+  State<_VoiceSourceCard> createState() => _VoiceSourceCardState();
+}
+
+class _VoiceSourceCardState extends State<_VoiceSourceCard> {
+  final TextEditingController _key = TextEditingController();
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.voice.load().then((_) {
+      if (!mounted) return;
+      _key.text = widget.voice.keyFor(widget.voice.selectedId);
+      setState(() => _ready = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _key.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final voice = widget.voice;
+    final selected = _ready ? voice.selected : voice.sources.first;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.record_voice_over_outlined,
+                  size: 16, color: AppColors.accentCyan),
+              SizedBox(width: 8),
+              Text(
+                'Narration voice',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Which engine speaks the narration. The system voice is free and '
+            'runs offline on every platform.',
+            style: TextStyle(color: AppColors.textFaint, fontSize: 12),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: selected.id,
+                isExpanded: true,
+                dropdownColor: AppColors.surfaceHigh,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                ),
+                items: [
+                  for (final s in voice.sources)
+                    DropdownMenuItem(value: s.id, child: Text(s.label)),
+                ],
+                onChanged: (id) async {
+                  if (id == null) return;
+                  await voice.setSource(id);
+                  if (!mounted) return;
+                  _key.text = voice.keyFor(id);
+                  setState(() {});
+                },
+              ),
+            ),
+          ),
+          if (selected.needsKey) ...[
+            const SizedBox(height: 10),
+            TextField(
+              controller: _key,
+              obscureText: true,
+              onChanged: (v) => voice.setKey(selected.id, v.trim()),
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: 'API key',
+                hintStyle: const TextStyle(color: AppColors.textFaint),
+                helperText: selected.keyHint,
+                helperStyle: const TextStyle(color: AppColors.textFaint),
+                filled: true,
+                fillColor: AppColors.background,
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AppColors.accentCyan),
+                ),
+              ),
+            ),
+          ] else ...[
+            const SizedBox(height: 10),
+            Row(
+              children: const [
+                Icon(Icons.check_circle_outline,
+                    size: 14, color: AppColors.accentGreen),
+                SizedBox(width: 6),
+                Text(
+                  'No setup needed — free & offline.',
+                  style: TextStyle(color: AppColors.accentGreen, fontSize: 12),
+                ),
+              ],
             ),
           ],
         ],

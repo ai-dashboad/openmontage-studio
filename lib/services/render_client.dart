@@ -3,7 +3,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'command_runner.dart';
-import 'tts_client.dart' show durationSeconds;
+import 'voice_settings.dart';
 
 /// The result of a real render: a finished MP4 on disk.
 class RenderResult {
@@ -24,10 +24,14 @@ class RenderResult {
 /// path) and Remotion (`npx remotion render`, the cinematic path) — no server
 /// process. The app spawns the tools itself.
 class RenderClient {
-  RenderClient({CommandRunner runner = const SystemCommandRunner()})
-    : _runner = runner;
+  RenderClient({
+    CommandRunner runner = const SystemCommandRunner(),
+    VoiceSettings? voiceSettings,
+  }) : _runner = runner,
+       _voices = voiceSettings ?? VoiceSettings();
 
   final CommandRunner _runner;
+  final VoiceSettings _voices;
 
   static const _bg = '0x0F172A';
   static const _headlineColor = '0xE2E8F0';
@@ -37,11 +41,23 @@ class RenderClient {
   static const _fps = 30;
 
   String get _font {
-    const candidates = [
-      '/System/Library/Fonts/Supplemental/Arial.ttf',
-      '/System/Library/Fonts/Helvetica.ttc',
-      '/Library/Fonts/Arial.ttf',
-    ];
+    final candidates = Platform.isWindows
+        ? const [
+            r'C:\Windows\Fonts\arial.ttf',
+            r'C:\Windows\Fonts\segoeui.ttf',
+            r'C:\Windows\Fonts\tahoma.ttf',
+          ]
+        : Platform.isMacOS
+        ? const [
+            '/System/Library/Fonts/Supplemental/Arial.ttf',
+            '/System/Library/Fonts/Helvetica.ttc',
+            '/Library/Fonts/Arial.ttf',
+          ]
+        : const [
+            '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+            '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+            '/usr/share/fonts/TTF/DejaVuSans.ttf',
+          ];
     for (final p in candidates) {
       if (File(p).existsSync()) return p;
     }
@@ -71,7 +87,7 @@ class RenderClient {
     String? voice,
     String? runtime,
   }) async {
-    final v = voice ?? 'Samantha';
+    final v = voice ?? '';
     if (runtime == 'remotion' && await _remotionAvailable()) {
       return _renderRemotion(scenes, v);
     }
@@ -79,10 +95,27 @@ class RenderClient {
   }
 
   /// Opens a finished clip in the default player. Best-effort.
-  Future<void> open(String path) async => _runner.spawn('open', [path]);
+  Future<void> open(String path) async {
+    if (Platform.isMacOS) {
+      _runner.spawn('open', [path]);
+    } else if (Platform.isWindows) {
+      _runner.spawn('cmd', ['/c', 'start', '', path]);
+    } else {
+      _runner.spawn('xdg-open', [path]);
+    }
+  }
 
-  /// Reveals a finished clip in Finder. Best-effort.
-  Future<void> reveal(String path) async => _runner.spawn('open', ['-R', path]);
+  /// Reveals a finished clip in the OS file manager. Best-effort.
+  Future<void> reveal(String path) async {
+    if (Platform.isMacOS) {
+      _runner.spawn('open', ['-R', path]);
+    } else if (Platform.isWindows) {
+      _runner.spawn('explorer', ['/select,', path]);
+    } else {
+      // Most Linux file managers lack a reliable "reveal"; open the folder.
+      _runner.spawn('xdg-open', [File(path).parent.path]);
+    }
+  }
 
   // --- ffmpeg runtime --------------------------------------------------------
 
@@ -114,11 +147,19 @@ class RenderClient {
         headline,
         subtitle,
       ].where((s) => s.isNotEmpty).join('. ');
-      final narrPath = '${work.path}/narr_$i.aiff';
+      String? narrPath;
       var adur = 0.0;
       if (narration.isNotEmpty) {
-        final r = await _runner.run('say', ['-v', voice, '-o', narrPath, narration]);
-        if (r.ok) adur = await durationSeconds(_runner, narrPath);
+        final clip = await _voices.synthesize(
+          _runner,
+          narration,
+          outPathBase: '${work.path}/narr_$i',
+          voice: voice,
+        );
+        if (clip != null) {
+          narrPath = clip.path;
+          adur = clip.seconds;
+        }
       }
       final duration = [seconds, adur + 0.3, 1.5].reduce(max);
       durations.add(duration);
@@ -180,7 +221,7 @@ class RenderClient {
         '-f', 'lavfi',
         '-i', 'color=c=$_bg:s=${_w}x$_h:rate=$_fps:duration=$duration',
       ];
-      if (narration.isNotEmpty) {
+      if (narrPath != null) {
         cmd.addAll(['-i', narrPath]);
       } else {
         cmd.addAll([
@@ -368,9 +409,16 @@ class RenderClient {
       String? raw;
       var adur = 0.0;
       if (narration.isNotEmpty) {
-        raw = '${work.path}/rm_narr_$i.aiff';
-        final r = await _runner.run('say', ['-v', voice, '-o', raw, narration]);
-        if (r.ok) adur = await durationSeconds(_runner, raw);
+        final clip = await _voices.synthesize(
+          _runner,
+          narration,
+          outPathBase: '${work.path}/rm_narr_$i',
+          voice: voice,
+        );
+        if (clip != null) {
+          raw = clip.path;
+          adur = clip.seconds;
+        }
       }
       raws.add(raw);
       durations.add([seconds, adur + 0.3, 1.5].reduce(max));
