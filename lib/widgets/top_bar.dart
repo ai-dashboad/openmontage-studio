@@ -11,6 +11,8 @@ class TopBar extends StatelessWidget {
     this.provider,
     this.onRetryServices,
     this.creditsLabel,
+    this.focusMode = false,
+    this.onToggleFocus,
     this.imagesEnabled = false,
     this.fetchingImages = false,
     this.onFetchImages,
@@ -25,6 +27,10 @@ class TopBar extends StatelessWidget {
 
   /// Optional credit/plan chip (e.g. "5 free renders left" or "Pro").
   final String? creditsLabel;
+
+  /// The Studio/Focus layout toggle (from the Open Montage editor design).
+  final bool focusMode;
+  final VoidCallback? onToggleFocus;
   final bool imagesEnabled;
   final bool fetchingImages;
   final VoidCallback? onFetchImages;
@@ -64,6 +70,10 @@ class TopBar extends StatelessWidget {
           ),
           const SizedBox(width: 20),
           Flexible(child: _ProjectChip(name: projectName)),
+          if (onToggleFocus != null) ...[
+            const SizedBox(width: 14),
+            _LayoutToggle(focus: focusMode, onToggle: onToggleFocus!),
+          ],
           const Spacer(),
           if (provider != null) ...[
             _ServiceStatus(
@@ -231,6 +241,58 @@ class _ServiceStatus extends StatelessWidget {
           style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
         ),
       ],
+    );
+  }
+}
+
+/// The Studio / Focus layout toggle from the Open Montage editor design.
+class _LayoutToggle extends StatelessWidget {
+  const _LayoutToggle({required this.focus, required this.onToggle});
+  final bool focus;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: AppColors.panel2,
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _seg('Studio', Icons.view_sidebar_outlined, !focus,
+              focus ? onToggle : null),
+          _seg('Focus', Icons.crop_landscape_outlined, focus,
+              focus ? null : onToggle),
+        ],
+      ),
+    );
+  }
+
+  Widget _seg(String label, IconData icon, bool active, VoidCallback? onTap) {
+    final color = active ? AppColors.textPrimary : AppColors.textMuted;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(7),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: active ? AppColors.panel3 : Colors.transparent,
+          borderRadius: BorderRadius.circular(7),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 6),
+            Text(label,
+                style: TextStyle(
+                    color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+          ],
+        ),
+      ),
     );
   }
 }

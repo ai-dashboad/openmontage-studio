@@ -23,6 +23,7 @@ class HomeScreen extends StatefulWidget {
     required this.onReopenProject,
     required this.onOpenSettings,
     this.updateChecker,
+    this.onSignIn,
   });
 
   final AgentService agent;
@@ -31,6 +32,9 @@ class HomeScreen extends StatefulWidget {
   final void Function(List<Scene>? scenes, String? brief) onOpenProject;
   final ValueChanged<StudioProject> onReopenProject;
   final VoidCallback onOpenSettings;
+
+  /// When set (guest mode), the header shows a "Sign in" affordance.
+  final VoidCallback? onSignIn;
 
   /// When provided, the home checks for a newer release and shows a banner.
   final UpdateChecker? updateChecker;
@@ -73,7 +77,11 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  Future<void> _create() async {
+  Future<void> _create() => _createWith('');
+
+  /// Plans a scene plan from the brief plus an optional spec [suffix] carrying
+  /// the chosen format / length / tone, then opens the studio.
+  Future<void> _createWith(String suffix) async {
     final brief = _brief.text.trim();
     // No brief, or already working: open the sample project.
     if (brief.isEmpty) {
@@ -82,7 +90,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     setState(() => _planning = true);
     try {
-      final scenes = await widget.agent.planScenes(brief);
+      final scenes = await widget.agent.planScenes('$brief$suffix');
       if (!mounted) return;
       widget.onOpenProject(scenes, brief);
     } catch (_) {
@@ -94,6 +102,13 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// One-click start from an example prompt.
+  void _useExample(String prompt) {
+    if (_planning) return;
+    _brief.text = prompt;
+    _create();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -103,35 +118,37 @@ class _HomeScreenState extends State<HomeScreen> {
           child: ListView(
             padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 36),
             children: [
-              _Header(onOpenSettings: widget.onOpenSettings),
+              _Header(
+                onOpenSettings: widget.onOpenSettings,
+                onSignIn: widget.onSignIn,
+              ),
               if (_update != null) ...[
                 const SizedBox(height: 16),
                 _UpdateBanner(info: _update!),
               ],
-              const SizedBox(height: 28),
-              _NewProjectCard(
+              const SizedBox(height: 44),
+              _BriefHero(
                 controller: _brief,
                 planning: _planning,
-                onCreate: _create,
+                onGenerate: _createWith,
+                onExample: _useExample,
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 40),
+              if (_projects.isNotEmpty) ...[
+                const _SectionLabel('Your projects'),
+                const SizedBox(height: 12),
+                _ProjectList(
+                  items: _projects,
+                  onReopen: widget.onReopenProject,
+                ),
+                const SizedBox(height: 24),
+              ],
               _EngineStatus(
                 provider: widget.provider,
                 onRetry: () async {
                   await widget.provider.ensureRunning();
                   await widget.provider.probe();
                 },
-              ),
-              const SizedBox(height: 32),
-              const _SectionLabel('Capabilities'),
-              const SizedBox(height: 12),
-              const _CapabilityGrid(),
-              const SizedBox(height: 32),
-              const _SectionLabel('Your projects'),
-              const SizedBox(height: 12),
-              _ProjectList(
-                items: _projects,
-                onReopen: widget.onReopenProject,
               ),
             ],
           ),
@@ -142,33 +159,69 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.onOpenSettings});
+  const _Header({required this.onOpenSettings, this.onSignIn});
   final VoidCallback onOpenSettings;
+  final VoidCallback? onSignIn;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const Icon(Icons.blur_circular, color: AppColors.accentCyan, size: 30),
-        const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            Text(
-              'OpenMontage Studio',
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 24,
-                fontWeight: FontWeight.w700,
+        Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(9),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [AppColors.accent2, AppColors.accent],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.accent.withValues(alpha: 0.4),
+                blurRadius: 14,
+                offset: const Offset(0, 4),
               ),
+            ],
+          ),
+          alignment: Alignment.center,
+          child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 20),
+        ),
+        const SizedBox(width: 11),
+        Text(
+          'Open Montage',
+          style: AppTheme.heading.copyWith(
+            color: AppColors.textPrimary,
+            fontSize: 18,
+          ),
+        ),
+        const SizedBox(width: 11),
+        Container(
+          padding: const EdgeInsets.only(left: 11),
+          decoration: const BoxDecoration(
+            border: Border(left: BorderSide(color: AppColors.borderSoft)),
+          ),
+          child: Text(
+            'AI AD STUDIO',
+            style: AppTheme.mono.copyWith(
+              color: AppColors.textFaint,
+              fontSize: 11,
+              letterSpacing: 1.0,
             ),
-            Text(
-              'AI-orchestrated video production',
-              style: TextStyle(color: AppColors.textMuted, fontSize: 13),
-            ),
-          ],
+          ),
         ),
         const Spacer(),
+        if (onSignIn != null) ...[
+          TextButton(
+            onPressed: onSignIn,
+            child: const Text(
+              'Sign in',
+              style: TextStyle(color: AppColors.accentCyan),
+            ),
+          ),
+          const SizedBox(width: 4),
+        ],
         OutlinedButton.icon(
           onPressed: onOpenSettings,
           icon: const Icon(Icons.settings_outlined, size: 16),
@@ -183,99 +236,339 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _NewProjectCard extends StatelessWidget {
-  const _NewProjectCard({
+/// The Brief screen ("Open Montage" design): a director-style prompt with
+/// FORMAT / LENGTH / TONE controls and one-click examples. The selections are
+/// folded into the brief so the agent directs to spec.
+class _BriefHero extends StatefulWidget {
+  const _BriefHero({
     required this.controller,
     required this.planning,
-    required this.onCreate,
+    required this.onGenerate,
+    required this.onExample,
   });
   final TextEditingController controller;
   final bool planning;
-  final VoidCallback onCreate;
+  final ValueChanged<String> onGenerate;
+  final ValueChanged<String> onExample;
+
+  @override
+  State<_BriefHero> createState() => _BriefHeroState();
+}
+
+class _BriefHeroState extends State<_BriefHero> {
+  static const _formats = [
+    ('9:16', 'Reels'),
+    ('1:1', 'Square'),
+    ('16:9', 'Wide'),
+  ];
+  static const _lengths = ['15s', '30s', '60s'];
+  static const _tones = ['Bold', 'Playful', 'Premium', 'Calm'];
+  static const _examples = [
+    'A 15-second Reels ad for our AI productivity app launch',
+    'A punchy product drop for a new sneaker',
+    'A founder-led teaser for our seed round',
+  ];
+
+  int _fmt = 0, _len = 0, _tone = 0;
+
+  void _generate() {
+    final f = _formats[_fmt];
+    final suffix =
+        ' — Make it a ${_lengths[_len]} ${f.$2} (${f.$1}) ad, '
+        '${_tones[_tone].toLowerCase()} tone.';
+    widget.onGenerate(suffix);
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-        gradient: const LinearGradient(
-          colors: [Color(0xFF15233B), AppColors.surface],
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Start a new video',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
+    final planning = widget.planning;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(
+          'DESCRIBE IT · WE DIRECT IT',
+          style: AppTheme.mono.copyWith(
+            color: AppColors.accent2,
+            fontSize: 12,
+            letterSpacing: 2.4,
           ),
-          const SizedBox(height: 12),
-          Row(
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'What ad are we making today?',
+          textAlign: TextAlign.center,
+          style: AppTheme.heading.copyWith(
+            color: AppColors.textPrimary,
+            fontSize: 40,
+            height: 1.05,
+          ),
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          'Write a brief in plain language. Open Montage scripts it, '
+          'storyboards the scenes, picks the footage, and lays it on a '
+          'timeline you can edit.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: AppColors.textMuted,
+            fontSize: 15,
+            height: 1.5,
+          ),
+        ),
+        const SizedBox(height: 28),
+        // Input card with a control bar — the heart of the Brief screen.
+        Container(
+          decoration: BoxDecoration(
+            color: AppColors.panel1,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppColors.borderSoft),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x66000000),
+                blurRadius: 60,
+                offset: Offset(0, 26),
+              ),
+            ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
             children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
+                child: TextField(
+                  controller: widget.controller,
+                  enabled: !planning,
+                  autofocus: true,
+                  maxLines: 3,
+                  minLines: 2,
+                  onSubmitted: (_) => _generate(),
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 16,
+                    height: 1.5,
                   ),
-                  decoration: BoxDecoration(
-                    color: AppColors.background,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: TextField(
-                    controller: controller,
-                    enabled: !planning,
-                    onSubmitted: (_) => onCreate(),
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 14,
-                    ),
-                    decoration: const InputDecoration(
-                      isDense: true,
-                      border: InputBorder.none,
-                      hintText:
-                          'Describe your video — e.g. "a 30s explainer on black holes"',
-                      hintStyle: TextStyle(
-                        color: AppColors.textFaint,
-                        fontSize: 14,
-                      ),
-                    ),
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    border: InputBorder.none,
+                    hintText:
+                        'e.g. A 15-second Reels ad for our app launch — fast, '
+                        'bold, ending on a free-trial CTA.',
+                    hintStyle: TextStyle(color: AppColors.textFaint, fontSize: 16),
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
-              FilledButton.icon(
-                onPressed: planning ? null : onCreate,
-                icon: planning
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.background,
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                decoration: const BoxDecoration(
+                  border: Border(top: BorderSide(color: AppColors.borderSoft)),
+                ),
+                child: Wrap(
+                  spacing: 22,
+                  runSpacing: 16,
+                  crossAxisAlignment: WrapCrossAlignment.end,
+                  children: [
+                    _ControlGroup(
+                      label: 'FORMAT',
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (var i = 0; i < _formats.length; i++)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 6),
+                              child: _Chip(
+                                active: _fmt == i,
+                                onTap: planning
+                                    ? null
+                                    : () => setState(() => _fmt = i),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(_formats[i].$1,
+                                        style: AppTheme.mono.copyWith(
+                                            color: AppColors.textPrimary,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600)),
+                                    Text(_formats[i].$2,
+                                        style: const TextStyle(
+                                            color: AppColors.textMuted,
+                                            fontSize: 10)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    _ControlGroup(
+                      label: 'LENGTH',
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (var i = 0; i < _lengths.length; i++)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 6),
+                              child: _Chip(
+                                active: _len == i,
+                                onTap: planning
+                                    ? null
+                                    : () => setState(() => _len = i),
+                                child: Text(_lengths[i],
+                                    style: AppTheme.mono.copyWith(
+                                        color: AppColors.textPrimary,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600)),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    _ControlGroup(
+                      label: 'TONE',
+                      child: _Chip(
+                        active: false,
+                        onTap: planning
+                            ? null
+                            : () => setState(
+                                () => _tone = (_tone + 1) % _tones.length),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(_tones[_tone],
+                                style: const TextStyle(
+                                    color: AppColors.textPrimary,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500)),
+                            const SizedBox(width: 6),
+                            const Text('▾',
+                                style: TextStyle(
+                                    color: AppColors.textFaint, fontSize: 10)),
+                          ],
                         ),
-                      )
-                    : const Icon(Icons.auto_awesome, size: 18),
-                label: Text(planning ? 'Planning…' : 'Create'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.accentCyan,
-                  foregroundColor: AppColors.background,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 14,
-                  ),
+                      ),
+                    ),
+                    const SizedBox(width: 220, height: 0), // spacer pushes CTA
+                    FilledButton.icon(
+                      onPressed: planning ? null : _generate,
+                      icon: planning
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.auto_awesome, size: 17),
+                      label: Text(planning ? 'Directing…' : 'Generate ad'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.accent,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 22, vertical: 14),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-        ],
+        ),
+        const SizedBox(height: 18),
+        Wrap(
+          spacing: 9,
+          runSpacing: 9,
+          alignment: WrapAlignment.center,
+          children: [
+            const Padding(
+              padding: EdgeInsets.only(top: 7, right: 2),
+              child: Text('Try:',
+                  style: TextStyle(color: AppColors.textFaint, fontSize: 12.5)),
+            ),
+            for (final ex in _examples)
+              _ExampleChip(
+                  label: ex,
+                  onTap: planning ? null : () => widget.onExample(ex)),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// A labeled control group: a small mono caption above its control row.
+class _ControlGroup extends StatelessWidget {
+  const _ControlGroup({required this.label, required this.child});
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(label,
+            style: AppTheme.mono.copyWith(
+                color: AppColors.textFaint, fontSize: 10, letterSpacing: 1.4)),
+        const SizedBox(height: 6),
+        child,
+      ],
+    );
+  }
+}
+
+/// A selectable pill in the control bar; indigo ring + tint when active.
+class _Chip extends StatelessWidget {
+  const _Chip({required this.active, required this.onTap, required this.child});
+  final bool active;
+  final VoidCallback? onTap;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(9),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+        decoration: BoxDecoration(
+          color: active
+              ? AppColors.accent.withValues(alpha: 0.14)
+              : AppColors.panel2,
+          borderRadius: BorderRadius.circular(9),
+          border: Border.all(
+            color: active ? AppColors.accent : AppColors.borderStrong,
+            width: active ? 1.5 : 1,
+          ),
+        ),
+        child: child,
+      ),
+    );
+  }
+}
+
+class _ExampleChip extends StatelessWidget {
+  const _ExampleChip({required this.label, this.onTap});
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Text(
+            label,
+            style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
+          ),
+        ),
       ),
     );
   }
@@ -344,92 +637,6 @@ class _SectionLabel extends StatelessWidget {
         fontSize: 12,
         letterSpacing: 1.2,
         fontWeight: FontWeight.w600,
-      ),
-    );
-  }
-}
-
-class _CapabilityGrid extends StatelessWidget {
-  const _CapabilityGrid();
-
-  @override
-  Widget build(BuildContext context) {
-    return GridView.count(
-      crossAxisCount: 3,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      childAspectRatio: 2.6,
-      children: [
-        for (final cap in MockProject.capabilities) _CapabilityCard(cap: cap),
-      ],
-    );
-  }
-}
-
-class _CapabilityCard extends StatelessWidget {
-  const _CapabilityCard({required this.cap});
-  final Capability cap;
-
-  @override
-  Widget build(BuildContext context) {
-    final ok = cap.isConfigured;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Row(
-            children: [
-              Text(
-                cap.label,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const Spacer(),
-              if (cap.isLocalReady)
-                const Icon(
-                  Icons.computer,
-                  size: 13,
-                  color: AppColors.accentCyan,
-                ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              Text(
-                ok ? 'Ready' : 'Roadmap',
-                style: AppTheme.mono.copyWith(
-                  color: ok ? AppColors.accentGreen : AppColors.textFaint,
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  cap.detail,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.textFaint,
-                    fontSize: 11,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
       ),
     );
   }

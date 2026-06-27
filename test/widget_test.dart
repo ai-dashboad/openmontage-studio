@@ -134,17 +134,17 @@ Future<void> _boot(
 }
 
 Future<void> _enterStudio(WidgetTester tester) async {
-  await tester.tap(find.text('Create'));
+  await tester.tap(find.text('Generate ad'));
   await tester.pumpAndSettle();
 }
 
 void main() {
-  testWidgets('boots to the home launcher with capabilities', (tester) async {
+  testWidgets('boots to the home launcher with the prompt hero', (tester) async {
     await _boot(tester);
 
-    expect(find.text('OpenMontage Studio'), findsOneWidget);
-    expect(find.text('Start a new video'), findsOneWidget);
-    expect(find.text('Composition'), findsOneWidget);
+    expect(find.text('Open Montage'), findsOneWidget);
+    expect(find.text('What ad are we making today?'), findsOneWidget);
+    expect(find.text('Generate ad'), findsOneWidget);
   });
 
   testWidgets('home shows an update banner when a newer version exists', (
@@ -179,7 +179,7 @@ void main() {
       find.byType(TextField).first,
       'a 30s explainer on black holes',
     );
-    await tester.tap(find.text('Create'));
+    await tester.tap(find.text('Generate ad'));
     await tester.pumpAndSettle();
 
     // The studio is driven by the agent's generated scenes, not the sample.
@@ -398,7 +398,7 @@ void main() {
     expect(find.text('Ollama'), findsOneWidget);
   });
 
-  testWidgets('unauthenticated shows sign-in; login enters the app', (
+  testWidgets('unauthenticated enters as guest; sign-in is reachable', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
@@ -430,20 +430,26 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // No session -> the sign-in screen, not the app.
+    // No session -> straight into the app as a guest (no wall).
+    expect(find.text('What ad are we making today?'), findsOneWidget);
+    // A guest can reach sign-in from the header.
+    expect(find.widgetWithText(TextButton, 'Sign in'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Sign in'));
+    await tester.pumpAndSettle();
+
+    // The sign-in screen is presented on demand, with third-party options.
     expect(find.text('Welcome back'), findsOneWidget);
-    expect(find.text('Start a new video'), findsNothing);
-    // Third-party sign-in options are offered.
     expect(find.text('GitHub'), findsOneWidget);
     expect(find.text('Google'), findsOneWidget);
 
     await tester.enterText(find.byType(TextField).at(0), 'x@y.com');
     await tester.enterText(find.byType(TextField).at(1), 'supersecret1');
-    await tester.tap(find.text('Sign in'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
     await tester.pumpAndSettle();
 
-    // Authenticated -> the home launcher.
-    expect(find.text('Start a new video'), findsOneWidget);
+    // Back to the home launcher, now signed in.
+    expect(find.text('What ad are we making today?'), findsOneWidget);
   });
 
   testWidgets('register mode shows the marketing consent opt-in', (
@@ -465,6 +471,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    // Guest -> open sign-in from the header, then switch to register.
+    await tester.tap(find.widgetWithText(TextButton, 'Sign in'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('New here? Create an account'));
     await tester.pumpAndSettle();
 
