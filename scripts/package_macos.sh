@@ -104,13 +104,28 @@ sign_engine() {
   echo "==> Signed ${n} engine binaries"
 }
 
+# Re-sign the app's own nested frameworks/helpers (Sparkle, FlutterMacOS,
+# plugins) with a Developer ID + secure timestamp. Flutter ships them
+# ad-hoc-signed, which notarization rejects. --deep here re-signs each
+# framework's internal code (Sparkle nests Updater.app/Autoupdate/XPCServices);
+# they need no special entitlements. Must run before the outer app is sealed.
+sign_frameworks() {
+  [[ -d "$APP/Contents/Frameworks" ]] || return 0
+  echo "==> Code-signing app frameworks…"
+  for fw in "$APP"/Contents/Frameworks/*; do
+    codesign --force --deep --options runtime --timestamp \
+      --sign "$IDENTITY" "$fw" >/dev/null
+  done
+}
+
 if [[ "$BUNDLE_ENGINE" == "1" ]]; then bundle_engine; fi
 
 if [[ -n "$IDENTITY" ]]; then
   [[ "$BUNDLE_ENGINE" == "1" ]] && sign_engine
+  sign_frameworks
   echo "==> Code-signing app: ${IDENTITY}"
-  # Sign the app outermost-last (no --deep, which doesn't apply per-file
-  # entitlements and is deprecated).
+  # Sign the app outermost-last (no --deep, which would strip the engine's JIT
+  # entitlements; nested code is already signed above).
   codesign --force --options runtime --timestamp \
     --entitlements "$ENTITLEMENTS" --sign "$IDENTITY" "$APP"
   codesign --verify --verbose=2 "$APP"
