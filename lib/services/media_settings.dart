@@ -11,7 +11,17 @@ class MediaSettings {
   MediaSettings({List<ImageSource>? sources, SharedPreferences? prefs})
     : sources =
           sources ??
-          [const NoneImageSource(), PexelsImageSource()],
+          [
+            const NoneImageSource(),
+            // AIGC text-to-image: cloud (BYOK) for quality, local for free.
+            FalImageSource(),
+            OpenAiImageSource(),
+            GeminiImageSource(),
+            GrokImageSource(),
+            LocalDiffusionImageSource(),
+            // Stock photos.
+            PexelsImageSource(),
+          ],
       _injected = prefs;
 
   final List<ImageSource> sources;
