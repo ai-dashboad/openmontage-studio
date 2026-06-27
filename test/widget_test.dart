@@ -142,7 +142,7 @@ void main() {
   testWidgets('boots to the home launcher with the prompt hero', (tester) async {
     await _boot(tester);
 
-    expect(find.text('OpenMontage Studio'), findsOneWidget);
+    expect(find.text('Open Montage'), findsOneWidget);
     expect(find.text('What ad are we making today?'), findsOneWidget);
     expect(find.text('Generate ad'), findsOneWidget);
   });

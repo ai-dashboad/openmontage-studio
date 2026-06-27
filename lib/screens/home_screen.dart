@@ -167,24 +167,49 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const Icon(Icons.blur_circular, color: AppColors.accentCyan, size: 30),
-        const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            Text(
-              'OpenMontage Studio',
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 24,
-                fontWeight: FontWeight.w700,
+        Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(9),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [AppColors.accent2, AppColors.accent],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.accent.withValues(alpha: 0.4),
+                blurRadius: 14,
+                offset: const Offset(0, 4),
               ),
+            ],
+          ),
+          alignment: Alignment.center,
+          child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 20),
+        ),
+        const SizedBox(width: 11),
+        Text(
+          'Open Montage',
+          style: AppTheme.heading.copyWith(
+            color: AppColors.textPrimary,
+            fontSize: 18,
+          ),
+        ),
+        const SizedBox(width: 11),
+        Container(
+          padding: const EdgeInsets.only(left: 11),
+          decoration: const BoxDecoration(
+            border: Border(left: BorderSide(color: AppColors.borderSoft)),
+          ),
+          child: Text(
+            'AI AD STUDIO',
+            style: AppTheme.mono.copyWith(
+              color: AppColors.textFaint,
+              fontSize: 11,
+              letterSpacing: 1.0,
             ),
-            Text(
-              'AI-orchestrated video production',
-              style: TextStyle(color: AppColors.textMuted, fontSize: 13),
-            ),
-          ],
+          ),
         ),
         const Spacer(),
         if (onSignIn != null) ...[
