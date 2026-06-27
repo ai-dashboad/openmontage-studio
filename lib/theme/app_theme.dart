@@ -18,6 +18,8 @@ class AppColors {
   static const Color borderStrong = Color(0xFF3A3A48); // --bd2
   static const Color accent = Color(0xFF6366F1); // --ac (indigo)
   static const Color accent2 = Color(0xFF8B8DF3); // --ac2
+  static const Color accentViolet = Color(0xFFA855F7); // --vio
+  static const Color accentSky = Color(0xFF38BDF8); // --cya
 
   static const Color textPrimary = Color(0xFFECECF0); // --tx
   static const Color textMuted = Color(0xFF9696A8); // --mut

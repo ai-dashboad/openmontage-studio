@@ -20,7 +20,11 @@ class AuthGate extends StatefulWidget {
 
   final AuthClient authClient;
   final SessionStore sessionStore;
-  final Widget Function(AccountSession session) appBuilder;
+  final Widget Function(
+    AccountSession? session,
+    Future<AccountSession?> Function() requestSignIn,
+  )
+  appBuilder;
 
   /// When provided, the gate starts authenticated (used by tests).
   final Account? initialAccount;
@@ -148,6 +152,41 @@ class _AuthGateState extends State<AuthGate> {
     return widget.authClient.billingCheckoutUrl(token);
   }
 
+  /// Builds the action-bearing session from the current account.
+  AccountSession _buildSession() => AccountSession(
+    account: _account!,
+    logout: _logout,
+    setConsent: _setConsent,
+    resendVerification: _resendVerification,
+    changePassword: _changePassword,
+    deleteAccount: _deleteAccount,
+    referral: _referral,
+    credits: _credits,
+    consumeCredit: _consumeCredit,
+    shareUnlock: _shareUnlock,
+    checkoutUrl: _checkoutUrl,
+  );
+
+  /// Presents the sign-in screen on demand (guests reach it from the home header
+  /// or when they try to render). Returns the new session, or null if cancelled
+  /// or already signed in returns the existing one.
+  Future<AccountSession?> _requestSignIn() async {
+    if (_account != null) return _buildSession();
+    final session = await Navigator.of(context).push<Session>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (ctx) => AuthScreen(
+          authClient: widget.authClient,
+          onAuthed: (s) => Navigator.of(ctx).pop(s),
+          onCancel: () => Navigator.of(ctx).pop(),
+        ),
+      ),
+    );
+    if (session == null) return null; // cancelled
+    await _onAuthed(session);
+    return _buildSession();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -158,23 +197,11 @@ class _AuthGateState extends State<AuthGate> {
         ),
       );
     }
-    if (_account == null) {
-      return AuthScreen(authClient: widget.authClient, onAuthed: _onAuthed);
-    }
+    // Guest-first: the app is usable without an account. Sign-in is requested
+    // only when it's needed (rendering) or from the home header.
     return widget.appBuilder(
-      AccountSession(
-        account: _account!,
-        logout: _logout,
-        setConsent: _setConsent,
-        resendVerification: _resendVerification,
-        changePassword: _changePassword,
-        deleteAccount: _deleteAccount,
-        referral: _referral,
-        credits: _credits,
-        consumeCredit: _consumeCredit,
-        shareUnlock: _shareUnlock,
-        checkoutUrl: _checkoutUrl,
-      ),
+      _account == null ? null : _buildSession(),
+      _requestSignIn,
     );
   }
 }
