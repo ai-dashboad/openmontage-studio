@@ -40,6 +40,7 @@ class EditorPanel extends StatefulWidget {
     this.onRuntimeChanged,
     this.onRevise,
     this.revising = false,
+    this.onUploadFootage,
     this.onUndo,
     this.onRedo,
     this.canUndo = false,
@@ -71,6 +72,7 @@ class EditorPanel extends StatefulWidget {
   final bool revising;
   final VoidCallback? onUndo;
   final VoidCallback? onRedo;
+  final VoidCallback? onUploadFootage;
   final bool canUndo;
   final bool canRedo;
 
@@ -200,7 +202,7 @@ class _EditorPanelState extends State<EditorPanel> {
         onMoveLeft: widget.onMoveLeft,
         onMoveRight: widget.onMoveRight,
       ),
-      2 => const _MediaTab(),
+      2 => _MediaTab(onUpload: widget.onUploadFootage),
       3 => const _BrandTab(),
       _ => _AudioTab(
         voice: widget.voice,
@@ -972,7 +974,8 @@ class _ScenesTabState extends State<_ScenesTab> {
 // --- Media tab --------------------------------------------------------------
 
 class _MediaTab extends StatelessWidget {
-  const _MediaTab();
+  const _MediaTab({this.onUpload});
+  final VoidCallback? onUpload;
 
   @override
   Widget build(BuildContext context) {
@@ -1014,7 +1017,7 @@ class _MediaTab extends StatelessWidget {
         const SizedBox(height: 14),
         InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: null,
+          onTap: onUpload,
           child: const DottedBorderBox(
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -1031,8 +1034,9 @@ class _MediaTab extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         const Text(
-          'On-device image and clip generation is on the roadmap — today the '
-          'render composites designed motion cards locally.',
+          'Upload your own footage and it renders behind the selected scene, '
+          'with the headline as a caption — the basis of real-person / UGC ads. '
+          'Stock search and AI image backgrounds are configured in Settings.',
           style: TextStyle(
             color: AppColors.textFaint,
             fontSize: 11.5,

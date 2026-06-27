@@ -654,8 +654,31 @@ class _StudioScreenState extends State<StudioScreen>
               for (final d in s.chartData) {'label': d.label, 'value': d.value},
             ],
           if (s.imageUrl.isNotEmpty) 'imageUrl': s.imageUrl,
+          if (s.clipPath.isNotEmpty) 'clipPath': s.clipPath,
         },
     ];
+  }
+
+  /// Lets the user attach their own video clip to the selected scene — the basis
+  /// of people-based / UGC ads. A poster frame is extracted for the preview, and
+  /// the clip renders behind the scene with the headline/subtitle as captions.
+  Future<void> _uploadFootage() async {
+    const group = XTypeGroup(
+      label: 'Video',
+      extensions: ['mp4', 'mov', 'm4v', 'webm'],
+    );
+    final file = await openFile(acceptedTypeGroups: const [group]);
+    if (file == null) return;
+    final thumb = await widget.render.extractThumbnail(file.path);
+    if (!mounted) return;
+    _updateScene(
+      _scene.copyWith(
+        clipPath: file.path,
+        type: 'footage_clip',
+        imageUrl: thumb ?? _scene.imageUrl,
+      ),
+    );
+    _toast('Footage added to "${_scene.title}"');
   }
 
   /// Fetches a background image for every scene from the selected media source
@@ -817,6 +840,7 @@ class _StudioScreenState extends State<StudioScreen>
                     },
                     onRevise: _revise,
                     revising: _revising,
+                    onUploadFootage: _uploadFootage,
                     onUndo: _undoEdit,
                     onRedo: _redoEdit,
                     canUndo: _undo.isNotEmpty,
