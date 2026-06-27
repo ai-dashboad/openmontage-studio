@@ -141,6 +141,20 @@ class RenderClient {
     }
   }
 
+  /// Extracts a poster frame from [videoPath] (~0.5s in) so an uploaded clip
+  /// shows a thumbnail in the editor without a video-playback dependency.
+  /// Returns the PNG path, or null on failure.
+  Future<String?> extractThumbnail(String videoPath) async {
+    final dir = Directory('${Directory.systemTemp.path}/openmontage-media/thumbs')
+      ..createSync(recursive: true);
+    final out = '${dir.path}/thumb_${videoPath.hashCode}.png';
+    final r = await _runner.run('ffmpeg', [
+      '-hide_banner', '-y', '-ss', '0.5', '-i', videoPath,
+      '-frames:v', '1', '-vf', 'scale=640:-2', out,
+    ], timeout: const Duration(seconds: 30));
+    return r.ok && File(out).existsSync() ? out : null;
+  }
+
   // --- ffmpeg runtime --------------------------------------------------------
 
   String _normHex(Object? value) {
@@ -166,6 +180,7 @@ class RenderClient {
       final stype = ((sc['type'] ?? '') as String).trim();
       final seconds = (sc['seconds'] as num?)?.toDouble() ?? 4;
       final accent = _normHex(sc['accent']);
+      final footage = ((sc['clipPath'] ?? '') as String).trim();
 
       final narration = sc['noNarration'] == true
           ? ''
@@ -239,11 +254,27 @@ class RenderClient {
       }
 
       final clip = '${work.path}/clip_$i.mp4';
-      final cmd = <String>[
-        '-hide_banner', '-y',
-        '-f', 'lavfi',
-        '-i', 'color=c=$_bg:s=${_w}x$_h:rate=$_fps:duration=$duration',
-      ];
+      // Visual input: an uploaded clip (looped + cover-cropped to frame) for UGC
+      // scenes, otherwise a solid card. Text/accent overlays apply on top of
+      // both, so captions burn onto real footage.
+      final hasFootage = footage.isNotEmpty && File(footage).existsSync();
+      final vf = hasFootage
+          ? [
+              'scale=$_w:$_h:force_original_aspect_ratio=increase',
+              'crop=$_w:$_h',
+              'setsar=1',
+              ...filters,
+            ]
+          : filters;
+      final cmd = <String>['-hide_banner', '-y'];
+      if (hasFootage) {
+        cmd.addAll(['-stream_loop', '-1', '-i', footage]);
+      } else {
+        cmd.addAll([
+          '-f', 'lavfi',
+          '-i', 'color=c=$_bg:s=${_w}x$_h:rate=$_fps:duration=$duration',
+        ]);
+      }
       if (narrPath != null) {
         cmd.addAll(['-i', narrPath]);
       } else {
@@ -253,10 +284,11 @@ class RenderClient {
         ]);
       }
       cmd.addAll([
-        '-vf', filters.join(','),
+        '-vf', vf.join(','),
         '-map', '0:v:0', '-map', '1:a:0',
         '-c:v', 'libx264', '-crf', '20', '-preset', 'medium',
-        '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-t', '$duration', clip,
+        '-pix_fmt', 'yuv420p', '-r', '$_fps', '-c:a', 'aac',
+        '-t', '$duration', clip,
       ]);
       final r = await _runner.run('ffmpeg', cmd, timeout: const Duration(seconds: 180));
       if (!r.ok) {
@@ -429,10 +461,17 @@ class RenderClient {
     } else {
       cut.addAll({'type': 'text_card', 'text': headline.isEmpty ? subtitle : headline});
     }
+    // A user-uploaded clip plays behind the scene (UGC / real footage). The
+    // composer's backgroundVideo takes priority over backgroundImage.
+    final clip = (sc['clipPath'] as String?) ?? '';
+    if (clip.isNotEmpty) {
+      cut['backgroundVideo'] = clip;
+      cut['backgroundOverlay'] = 0.35;
+    }
     // A resolved background image (stock/AI) sits behind the scene, dimmed so
     // the headline stays readable.
     final image = (sc['imageUrl'] as String?) ?? '';
-    if (image.isNotEmpty) {
+    if (clip.isEmpty && image.isNotEmpty) {
       cut['backgroundImage'] = image;
       cut['backgroundOverlay'] = 0.55;
     }

@@ -60,6 +60,7 @@ class Scene {
     this.chartData = const [],
     this.imageQuery = '',
     this.imageUrl = '',
+    this.clipPath = '',
   });
 
   final String id;
@@ -80,8 +81,14 @@ class Scene {
   /// Resolved background image (a URL or local path), once fetched. Empty = none.
   final String imageUrl;
 
+  /// A user-uploaded video clip backing this scene (local path). When set, the
+  /// scene renders the real footage behind it — the basis of people-based / UGC
+  /// ads. [imageUrl] doubles as the clip's poster frame for the preview.
+  final String clipPath;
+
   double get durationSeconds => endSeconds - startSeconds;
   bool get hasImage => imageUrl.isNotEmpty;
+  bool get hasClip => clipPath.isNotEmpty;
 
   bool get isChart => type == 'bar_chart' || type == 'pie_chart';
 
@@ -98,6 +105,7 @@ class Scene {
       'chartData': [for (final d in chartData) d.toJson()],
     if (imageQuery.isNotEmpty) 'imageQuery': imageQuery,
     if (imageUrl.isNotEmpty) 'imageUrl': imageUrl,
+    if (clipPath.isNotEmpty) 'clipPath': clipPath,
   };
 
   static Scene fromJson(Map<String, dynamic> j) => Scene(
@@ -115,6 +123,7 @@ class Scene {
         .toList(),
     imageQuery: j['imageQuery'] as String? ?? '',
     imageUrl: j['imageUrl'] as String? ?? '',
+    clipPath: j['clipPath'] as String? ?? '',
   );
 
   /// Returns a copy with the given fields replaced. Editing the inspector flows
@@ -130,6 +139,7 @@ class Scene {
     List<ChartDatum>? chartData,
     String? imageQuery,
     String? imageUrl,
+    String? clipPath,
   }) {
     return Scene(
       id: id,
@@ -143,6 +153,7 @@ class Scene {
       chartData: chartData ?? this.chartData,
       imageQuery: imageQuery ?? this.imageQuery,
       imageUrl: imageUrl ?? this.imageUrl,
+      clipPath: clipPath ?? this.clipPath,
     );
   }
 }

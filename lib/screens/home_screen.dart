@@ -261,7 +261,7 @@ class _BriefHeroState extends State<_BriefHero> {
     ('1:1', 'Square'),
     ('16:9', 'Wide'),
   ];
-  static const _lengths = ['15s', '30s', '60s'];
+  static const _lengths = ['10s', '15s', '30s'];
   static const _tones = ['Bold', 'Playful', 'Premium', 'Calm'];
   static const _examples = [
     'A 15-second Reels ad for our AI productivity app launch',
@@ -269,7 +269,7 @@ class _BriefHeroState extends State<_BriefHero> {
     'A founder-led teaser for our seed round',
   ];
 
-  int _fmt = 0, _len = 0, _tone = 0;
+  int _fmt = 0, _len = 1, _tone = 0; // default 15s to match the sample copy
 
   void _generate() {
     final f = _formats[_fmt];

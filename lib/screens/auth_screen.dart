@@ -14,10 +14,15 @@ class AuthScreen extends StatefulWidget {
     super.key,
     required this.authClient,
     required this.onAuthed,
+    this.onCancel,
   });
 
   final AuthClient authClient;
   final ValueChanged<Session> onAuthed;
+
+  /// When set, the screen is dismissible (shown on demand to a guest) and a
+  /// "Maybe later" affordance is offered.
+  final VoidCallback? onCancel;
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
@@ -292,6 +297,16 @@ class _AuthScreenState extends State<AuthScreen> {
                   ),
                   const SizedBox(height: 8),
                   _socialSection(),
+                  if (widget.onCancel != null) ...[
+                    const SizedBox(height: 4),
+                    TextButton(
+                      onPressed: _busy ? null : widget.onCancel,
+                      child: const Text(
+                        'Maybe later',
+                        style: TextStyle(color: AppColors.textFaint),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

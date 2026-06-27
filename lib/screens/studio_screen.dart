@@ -14,12 +14,11 @@ import '../services/provider_manager.dart';
 import '../services/render_client.dart';
 import '../services/tts_client.dart';
 import '../theme/app_theme.dart';
-import '../widgets/inspector.dart';
-import '../widgets/left_rail.dart';
+import '../widgets/editor_panel.dart';
 import '../widgets/paywall_sheet.dart';
 import '../widgets/preview_stage.dart';
 import '../widgets/render_dialog.dart';
-import '../widgets/side_panel.dart';
+import '../widgets/storyboard_rail.dart';
 import '../widgets/timeline.dart';
 import '../widgets/top_bar.dart';
 
@@ -94,8 +93,6 @@ class StudioScreen extends StatefulWidget {
 class _StudioScreenState extends State<StudioScreen>
     with SingleTickerProviderStateMixin {
   int _selectedScene = 0;
-  int _railIndex = 4; // Start on the agent chat.
-  bool _panelOpen = true;
 
   /// Studio (full editor) vs Focus (distraction-free stage). From the design's
   /// top-bar layout toggle.
@@ -137,9 +134,6 @@ class _StudioScreenState extends State<StudioScreen>
   String get _stageName => MockProject.stages[_stage].name;
   bool get _atCompose => _stageName == 'compose';
   bool get _atPublish => _stageName == 'publish';
-
-  /// The chat entry sits after the four asset families in the rail.
-  static const int _chatIndex = 4;
 
   double get _total => _scenes.last.endSeconds;
   Scene get _scene => _scenes[_selectedScene];
@@ -305,17 +299,6 @@ class _StudioScreenState extends State<StudioScreen>
             '${_total.toStringAsFixed(0)}s',
       ),
     ];
-  }
-
-  void _onRailSelect(int index) {
-    setState(() {
-      if (index == _railIndex) {
-        _panelOpen = !_panelOpen;
-      } else {
-        _railIndex = index;
-        _panelOpen = true;
-      }
-    });
   }
 
   void _selectScene(int index) {
@@ -671,8 +654,31 @@ class _StudioScreenState extends State<StudioScreen>
               for (final d in s.chartData) {'label': d.label, 'value': d.value},
             ],
           if (s.imageUrl.isNotEmpty) 'imageUrl': s.imageUrl,
+          if (s.clipPath.isNotEmpty) 'clipPath': s.clipPath,
         },
     ];
+  }
+
+  /// Lets the user attach their own video clip to the selected scene — the basis
+  /// of people-based / UGC ads. A poster frame is extracted for the preview, and
+  /// the clip renders behind the scene with the headline/subtitle as captions.
+  Future<void> _uploadFootage() async {
+    const group = XTypeGroup(
+      label: 'Video',
+      extensions: ['mp4', 'mov', 'm4v', 'webm'],
+    );
+    final file = await openFile(acceptedTypeGroups: const [group]);
+    if (file == null) return;
+    final thumb = await widget.render.extractThumbnail(file.path);
+    if (!mounted) return;
+    _updateScene(
+      _scene.copyWith(
+        clipPath: file.path,
+        type: 'footage_clip',
+        imageUrl: thumb ?? _scene.imageUrl,
+      ),
+    );
+    _toast('Footage added to "${_scene.title}"');
   }
 
   /// Fetches a background image for every scene from the selected media source
@@ -783,13 +789,11 @@ class _StudioScreenState extends State<StudioScreen>
             child: Row(
               children: [
                 if (!_focus)
-                  LeftRail(selected: _railIndex, onSelect: _onRailSelect),
-                if (!_focus && _panelOpen)
-                  SidePanel(
-                    railIndex: _railIndex,
-                    chatIndex: _chatIndex,
-                    onCollapse: () => setState(() => _panelOpen = false),
-                    conversation: _conversation,
+                  StoryboardRail(
+                    scenes: _scenes,
+                    selectedIndex: _selectedScene,
+                    onSelect: _selectScene,
+                    onAddScene: _addScene,
                   ),
                 Expanded(
                   child: PreviewStage(
@@ -801,44 +805,47 @@ class _StudioScreenState extends State<StudioScreen>
                     onTogglePlay: _togglePlay,
                   ),
                 ),
-                if (!_focus) Inspector(
-                  scene: _scene,
-                  stageName: _stageName,
-                  sceneIndex: _selectedScene,
-                  sceneCount: _scenes.length,
-                  approveLabel: _atPublish
-                      ? 'Export video'
-                      : _atCompose
-                      ? 'Render'
-                      : 'Approve & continue',
-                  onApprove: _approveStage,
-                  onSceneChanged: _updateScene,
-                  onDurationChanged: _setDuration,
-                  onAddScene: _addScene,
-                  onDeleteScene: _deleteScene,
-                  onMoveLeft: () => _moveScene(-1),
-                  onMoveRight: () => _moveScene(1),
-                  onGenerateNarration: _generateNarration,
-                  narrating: _narrating,
-                  voice: _voice,
-                  voices: _voices,
-                  onVoiceChanged: (v) {
-                    setState(() => _voice = v);
-                    _save();
-                  },
-                  runtime: _runtime,
-                  runtimes: _runtimes,
-                  onRuntimeChanged: (r) {
-                    setState(() => _runtime = r);
-                    _save();
-                  },
-                  onRevise: _revise,
-                  revising: _revising,
-                  onUndo: _undoEdit,
-                  onRedo: _redoEdit,
-                  canUndo: _undo.isNotEmpty,
-                  canRedo: _redo.isNotEmpty,
-                ),
+                if (!_focus)
+                  EditorPanel(
+                    conversation: _conversation,
+                    scene: _scene,
+                    stageName: _stageName,
+                    sceneIndex: _selectedScene,
+                    sceneCount: _scenes.length,
+                    approveLabel: _atPublish
+                        ? 'Export video'
+                        : _atCompose
+                        ? 'Render'
+                        : 'Approve & continue',
+                    onApprove: _approveStage,
+                    onSceneChanged: _updateScene,
+                    onDurationChanged: _setDuration,
+                    onAddScene: _addScene,
+                    onDeleteScene: _deleteScene,
+                    onMoveLeft: () => _moveScene(-1),
+                    onMoveRight: () => _moveScene(1),
+                    onGenerateNarration: _generateNarration,
+                    narrating: _narrating,
+                    voice: _voice,
+                    voices: _voices,
+                    onVoiceChanged: (v) {
+                      setState(() => _voice = v);
+                      _save();
+                    },
+                    runtime: _runtime,
+                    runtimes: _runtimes,
+                    onRuntimeChanged: (r) {
+                      setState(() => _runtime = r);
+                      _save();
+                    },
+                    onRevise: _revise,
+                    revising: _revising,
+                    onUploadFootage: _uploadFootage,
+                    onUndo: _undoEdit,
+                    onRedo: _redoEdit,
+                    canUndo: _undo.isNotEmpty,
+                    canRedo: _redo.isNotEmpty,
+                  ),
               ],
             ),
           ),

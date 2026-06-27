@@ -191,14 +191,17 @@ void main() {
     await _boot(tester);
     await _enterStudio(tester);
 
-    expect(find.text('stat_card'), findsWidgets);
-    expect(find.text('bar_chart'), findsNothing);
+    // The Scenes tab opens on the 2nd scene (a stat_card).
+    expect(find.textContaining('stat_card'), findsWidgets);
+    expect(find.textContaining('bar_chart'), findsNothing);
 
-    await tester.tap(find.text('Megacities'));
+    // Selecting the bar-chart scene from the storyboard rail re-points the
+    // Scenes tab at it.
+    await tester.tap(find.text('Megacities').first);
     await tester.pumpAndSettle();
 
-    expect(find.text('bar_chart'), findsWidgets);
-    expect(find.text('stat_card'), findsNothing);
+    expect(find.textContaining('bar_chart'), findsWidgets);
+    expect(find.textContaining('stat_card'), findsNothing);
   });
 
   testWidgets('agent chat shows the model and replies to a message', (
@@ -206,6 +209,10 @@ void main() {
   ) async {
     await _boot(tester, agent: _mockAgent(reply: 'Hook, body, payoff.'));
     await _enterStudio(tester);
+
+    // The director chat lives in the AI tab of the editor panel.
+    await tester.tap(find.byTooltip('AI'));
+    await tester.pumpAndSettle();
 
     // The live status bar shows the connected local model.
     expect(find.text('qwen2.5:latest'), findsOneWidget);
@@ -217,12 +224,22 @@ void main() {
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
 
+    // The reply lands at the bottom of the chat list; on the compact test
+    // surface it can sit just below the fold, so scroll it into view.
+    await tester.ensureVisible(
+      find.text('Hook, body, payoff.', skipOffstage: false),
+    );
+    await tester.pumpAndSettle();
     expect(find.text('Hook, body, payoff.'), findsOneWidget);
   });
 
   testWidgets('generate narration calls the TTS provider', (tester) async {
     await _boot(tester);
     await _enterStudio(tester);
+
+    // Voiceover controls live in the Audio tab.
+    await tester.tap(find.byTooltip('Audio'));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Generate narration'));
     await tester.pumpAndSettle();
@@ -234,7 +251,7 @@ void main() {
     await _boot(tester);
     await _enterStudio(tester);
 
-    await tester.tap(find.text('Megacities'));
+    await tester.tap(find.text('Megacities').first);
     await tester.pumpAndSettle();
 
     // The mini chart in the preview reflects the scene's real data.

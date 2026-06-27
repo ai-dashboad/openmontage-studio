@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import '../models/studio_models.dart';
 import '../theme/app_theme.dart';
 
-/// Region E — the timeline. The top row is the 7-stage pipeline progress; below
-/// it are two aligned tracks sharing one playhead: a **video track** (the scene
-/// strip) and an **audio track** (per-scene narration). Selecting a scene drives
-/// the preview and inspector.
+/// Region E — the multi-track timeline from the Open Montage editor design. A
+/// labelled track stack (Clips / Captions / Voice / Music) shares one ruler and
+/// playhead; selecting a clip drives the preview and the Scenes panel. The
+/// current pipeline stage rides in the header so the approve→render→export flow
+/// stays legible.
 class Timeline extends StatelessWidget {
   const Timeline({
     super.key,
@@ -24,329 +25,496 @@ class Timeline extends StatelessWidget {
   final double playheadSeconds;
   final ValueChanged<int> onSelectScene;
 
-  /// Left gutter where the V/A track labels sit.
-  static const double _gutter = 26;
+  /// Width of the left track-label gutter.
+  static const double _labels = 116;
+  static const double _ruler = 20;
+  static const double _trackH = 28;
+  static const double _gap = 4;
+
+  static const _tracks = <({String name, Color dot})>[
+    (name: 'Clips', dot: AppColors.accent),
+    (name: 'Captions', dot: AppColors.accentSky),
+    (name: 'Voice', dot: AppColors.accentGreen),
+    (name: 'Music', dot: AppColors.accentAmber),
+  ];
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 168,
+      height: 34 + _ruler + _tracks.length * (_trackH + _gap) + 20,
       decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(top: BorderSide(color: AppColors.border)),
+        color: AppColors.panel1,
+        border: Border(top: BorderSide(color: AppColors.borderSoft)),
       ),
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+      padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _StageTrack(currentStageIndex: currentStageIndex),
-          const SizedBox(height: 10),
+          _header(),
           Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final fullWidth = constraints.maxWidth;
-                final trackWidth = fullWidth - _gutter;
-                final frac = totalSeconds == 0
-                    ? 0.0
-                    : (playheadSeconds / totalSeconds).clamp(0.0, 1.0);
-                final playheadX = _gutter + frac * trackWidth;
-                return Stack(
-                  children: [
-                    Column(
-                      children: [
-                        Expanded(
-                          child: Row(
-                            children: [
-                              _trackLabel('V', Icons.movie_outlined),
-                              Expanded(
-                                child: _VideoTrack(
-                                  scenes: scenes,
-                                  selectedIndex: selectedSceneIndex,
-                                  onSelect: onSelectScene,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Expanded(
-                          child: Row(
-                            children: [
-                              _trackLabel('A', Icons.graphic_eq),
-                              Expanded(
-                                child: _AudioTrack(
-                                  scenes: scenes,
-                                  selectedIndex: selectedSceneIndex,
-                                  onSelect: onSelectScene,
-                                ),
-                              ),
-                            ],
-                          ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _trackLabels(),
+                Expanded(child: _trackArea()),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _header() {
+    final stage = MockProject.stages[currentStageIndex.clamp(
+      0,
+      MockProject.stages.length - 1,
+    )];
+    return SizedBox(
+      height: 34,
+      child: Row(
+        children: [
+          Text(
+            'TIMELINE',
+            style: AppTheme.mono.copyWith(
+              color: AppColors.accent2,
+              fontSize: 11,
+              letterSpacing: 0.6,
+            ),
+          ),
+          const SizedBox(width: 12),
+          _StageChip(stage: stage),
+          const Spacer(),
+          Text(
+            '${totalSeconds.toStringAsFixed(1)}s',
+            style: AppTheme.mono.copyWith(
+              color: AppColors.textFaint,
+              fontSize: 11,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Text(
+            '30 FPS · 1080p',
+            style: AppTheme.mono.copyWith(
+              color: AppColors.textFaint,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _trackLabels() {
+    return SizedBox(
+      width: _labels,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: _ruler),
+          for (final t in _tracks) ...[
+            SizedBox(
+              height: _trackH,
+              child: Row(
+                children: [
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: t.dot,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      t.name,
+                      style: const TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  const Icon(
+                    Icons.visibility_outlined,
+                    size: 13,
+                    color: AppColors.textFaint,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: _gap),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _trackArea() {
+    return LayoutBuilder(
+      builder: (context, c) {
+        final width = c.maxWidth;
+        final frac = totalSeconds == 0
+            ? 0.0
+            : (playheadSeconds / totalSeconds).clamp(0.0, 1.0);
+        final playheadX = (frac * width).clamp(0.0, width - 1);
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _Ruler(totalSeconds: totalSeconds),
+                _row(
+                  _ClipTrack(
+                    scenes: scenes,
+                    selectedIndex: selectedSceneIndex,
+                    onSelect: onSelectScene,
+                  ),
+                ),
+                _row(
+                  _CaptionTrack(
+                    scenes: scenes,
+                    selectedIndex: selectedSceneIndex,
+                    onSelect: onSelectScene,
+                  ),
+                ),
+                _row(
+                  _ClipWaveTrack(
+                    scenes: scenes,
+                    selectedIndex: selectedSceneIndex,
+                    onSelect: onSelectScene,
+                  ),
+                ),
+                _row(_MusicTrack(seed: '${scenes.length}-$totalSeconds')),
+              ],
+            ),
+            // Shared playhead across all tracks (below the ruler).
+            Positioned(
+              left: playheadX,
+              top: _ruler - 4,
+              bottom: 0,
+              child: Column(
+                children: [
+                  Container(
+                    width: 11,
+                    height: 11,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(3),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.4),
+                          blurRadius: 4,
                         ),
                       ],
                     ),
-                    // Shared playhead across both tracks.
-                    Positioned(
-                      left: playheadX.clamp(_gutter, fullWidth - 1),
-                      top: 0,
-                      bottom: 0,
-                      child: Container(width: 2, color: AppColors.accentCyan),
-                    ),
-                    Positioned(
-                      left: (playheadX - 5).clamp(_gutter - 5, fullWidth - 10),
-                      top: -2,
-                      child: Container(
-                        width: 10,
-                        height: 10,
-                        decoration: const BoxDecoration(
-                          color: AppColors.accentCyan,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              },
+                  ),
+                  Expanded(child: Container(width: 2, color: AppColors.accent)),
+                ],
+              ),
             ),
-          ),
-        ],
-      ),
+          ],
+        );
+      },
     );
   }
 
-  Widget _trackLabel(String label, IconData icon) {
-    return SizedBox(
-      width: _gutter,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 13, color: AppColors.textFaint),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: AppTheme.mono.copyWith(
-              color: AppColors.textFaint,
-              fontSize: 10,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _row(Widget child) => Padding(
+    padding: const EdgeInsets.only(bottom: _gap),
+    child: SizedBox(height: _trackH, child: child),
+  );
 }
 
-class _StageTrack extends StatelessWidget {
-  const _StageTrack({required this.currentStageIndex});
-  final int currentStageIndex;
-
-  WorkStatus _statusFor(int i) {
-    if (i < currentStageIndex) return WorkStatus.done;
-    if (i == currentStageIndex) return WorkStatus.awaiting;
-    return WorkStatus.pending;
-  }
+class _StageChip extends StatelessWidget {
+  const _StageChip({required this.stage});
+  final PipelineStage stage;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        for (var i = 0; i < MockProject.stages.length; i++) ...[
-          Icon(_statusFor(i).glyph, size: 13, color: _statusFor(i).color),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.accentAmber.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.accentAmber.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.radio_button_checked,
+            size: 11,
+            color: AppColors.accentAmber,
+          ),
           const SizedBox(width: 5),
           Text(
-            MockProject.stages[i].name,
+            stage.name,
             style: AppTheme.mono.copyWith(
-              fontSize: 11.5,
-              color: _statusFor(i) == WorkStatus.awaiting
-                  ? AppColors.accentAmber
-                  : _statusFor(i) == WorkStatus.done
-                  ? AppColors.textMuted
-                  : AppColors.textFaint,
-              fontWeight: _statusFor(i) == WorkStatus.awaiting
-                  ? FontWeight.w700
-                  : FontWeight.w400,
+              color: AppColors.textMuted,
+              fontSize: 11,
             ),
           ),
-          if (i < MockProject.stages.length - 1)
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 8),
-              child: Text(
-                '—',
-                style: TextStyle(color: AppColors.statusPending, fontSize: 11),
-              ),
-            ),
         ],
-      ],
-    );
-  }
-}
-
-/// The video track: one block per scene, sized by its duration.
-class _VideoTrack extends StatelessWidget {
-  const _VideoTrack({
-    required this.scenes,
-    required this.selectedIndex,
-    required this.onSelect,
-  });
-
-  final List<Scene> scenes;
-  final int selectedIndex;
-  final ValueChanged<int> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        for (var i = 0; i < scenes.length; i++)
-          Expanded(
-            flex: (scenes[i].durationSeconds * 10).round().clamp(1, 1 << 30),
-            child: _SceneBlock(
-              scene: scenes[i],
-              selected: i == selectedIndex,
-              onTap: () => onSelect(i),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-/// The audio track: a narration block per scene, aligned to the video track.
-class _AudioTrack extends StatelessWidget {
-  const _AudioTrack({
-    required this.scenes,
-    required this.selectedIndex,
-    required this.onSelect,
-  });
-
-  final List<Scene> scenes;
-  final int selectedIndex;
-  final ValueChanged<int> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        for (var i = 0; i < scenes.length; i++)
-          Expanded(
-            flex: (scenes[i].durationSeconds * 10).round().clamp(1, 1 << 30),
-            child: _NarrationBlock(
-              scene: scenes[i],
-              selected: i == selectedIndex,
-              onTap: () => onSelect(i),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _SceneBlock extends StatelessWidget {
-  const _SceneBlock({
-    required this.scene,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final Scene scene;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(6),
-        onTap: onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            color: scene.accent.withValues(alpha: selected ? 0.30 : 0.14),
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: selected ? scene.accent : Colors.transparent,
-              width: 1.5,
-            ),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                scene.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: selected ? AppColors.textPrimary : AppColors.textMuted,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              Text(
-                '${scene.durationSeconds.toStringAsFixed(1)}s',
-                style: AppTheme.mono.copyWith(
-                  color: AppColors.textFaint,
-                  fontSize: 10,
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
 }
 
-/// A scene's narration, drawn as a small deterministic waveform so the audio
-/// track reads as a real layer. Empty when the scene has no spoken text.
-class _NarrationBlock extends StatelessWidget {
-  const _NarrationBlock({
-    required this.scene,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final Scene scene;
-  final bool selected;
-  final VoidCallback onTap;
-
-  String get _narration =>
-      [scene.headline, scene.subtitle].where((s) => s.isNotEmpty).join('. ');
+/// Second markers spanning the track width. Visual only — selection drives the
+/// playhead today.
+class _Ruler extends StatelessWidget {
+  const _Ruler({required this.totalSeconds});
+  final double totalSeconds;
 
   @override
   Widget build(BuildContext context) {
-    final has = _narration.isNotEmpty;
-    const audioColor = AppColors.accentGreen;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(6),
-        onTap: onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            color: has
-                ? audioColor.withValues(alpha: selected ? 0.22 : 0.10)
-                : AppColors.background,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: selected && has ? audioColor : AppColors.border,
-              width: selected && has ? 1.5 : 1,
+    final total = totalSeconds <= 0 ? 1 : totalSeconds.ceil();
+    // Keep the labels readable: step so there are at most ~12 marks.
+    final step = (total / 12).ceil().clamp(1, total);
+    return SizedBox(
+      height: Timeline._ruler,
+      child: LayoutBuilder(
+        builder: (context, c) {
+          final marks = <Widget>[];
+          for (var s = 0; s <= total; s += step) {
+            final x = (s / total) * c.maxWidth;
+            marks.add(Positioned(
+              left: x.clamp(0, c.maxWidth - 18),
+              bottom: 2,
+              child: Text(
+                '${s}s',
+                style: AppTheme.mono.copyWith(
+                  color: AppColors.textFaint,
+                  fontSize: 9.5,
+                ),
+              ),
+            ));
+          }
+          return Stack(children: marks);
+        },
+      ),
+    );
+  }
+}
+
+/// A row of per-scene blocks sized by duration — the shared geometry for the
+/// clip, caption, and voice tracks so they stay aligned.
+class _ScaledRow extends StatelessWidget {
+  const _ScaledRow({required this.scenes, required this.builder});
+  final List<Scene> scenes;
+  final Widget Function(int index, Scene scene) builder;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (var i = 0; i < scenes.length; i++)
+          Expanded(
+            flex: (scenes[i].durationSeconds * 10).round().clamp(1, 1 << 30),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 1.5),
+              child: builder(i, scenes[i]),
             ),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          child: has
-              ? _Waveform(seed: _narration, color: audioColor)
-              : const Center(
+      ],
+    );
+  }
+}
+
+class _ClipTrack extends StatelessWidget {
+  const _ClipTrack({
+    required this.scenes,
+    required this.selectedIndex,
+    required this.onSelect,
+  });
+  final List<Scene> scenes;
+  final int selectedIndex;
+  final ValueChanged<int> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return _ScaledRow(
+      scenes: scenes,
+      builder: (i, scene) {
+        final selected = i == selectedIndex;
+        return InkWell(
+          borderRadius: BorderRadius.circular(6),
+          onTap: () => onSelect(i),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  scene.accent.withValues(alpha: selected ? 0.42 : 0.22),
+                  scene.accent.withValues(alpha: selected ? 0.24 : 0.12),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: selected ? scene.accent : Colors.transparent,
+                width: 1.5,
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            alignment: Alignment.centerLeft,
+            child: Row(
+              children: [
+                Expanded(
                   child: Text(
-                    'silent',
+                    scene.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: AppColors.textFaint,
-                      fontSize: 10,
+                      color: selected
+                          ? AppColors.textPrimary
+                          : AppColors.textMuted,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
-        ),
+                const SizedBox(width: 6),
+                Text(
+                  '${scene.durationSeconds.toStringAsFixed(1)}s',
+                  style: AppTheme.mono.copyWith(
+                    color: AppColors.textFaint,
+                    fontSize: 9.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _CaptionTrack extends StatelessWidget {
+  const _CaptionTrack({
+    required this.scenes,
+    required this.selectedIndex,
+    required this.onSelect,
+  });
+  final List<Scene> scenes;
+  final int selectedIndex;
+  final ValueChanged<int> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return _ScaledRow(
+      scenes: scenes,
+      builder: (i, scene) {
+        final caption = scene.subtitle.isNotEmpty
+            ? scene.subtitle
+            : scene.headline;
+        final selected = i == selectedIndex;
+        return InkWell(
+          borderRadius: BorderRadius.circular(6),
+          onTap: () => onSelect(i),
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.accentSky.withValues(
+                alpha: selected ? 0.20 : 0.10,
+              ),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: selected
+                    ? AppColors.accentSky.withValues(alpha: 0.7)
+                    : Colors.transparent,
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            alignment: Alignment.centerLeft,
+            child: Text(
+              caption.isEmpty ? '—' : caption,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.textMuted,
+                fontSize: 11,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Per-scene narration waveform (the Voice track).
+class _ClipWaveTrack extends StatelessWidget {
+  const _ClipWaveTrack({
+    required this.scenes,
+    required this.selectedIndex,
+    required this.onSelect,
+  });
+  final List<Scene> scenes;
+  final int selectedIndex;
+  final ValueChanged<int> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return _ScaledRow(
+      scenes: scenes,
+      builder: (i, scene) {
+        final narration = [scene.headline, scene.subtitle]
+            .where((s) => s.isNotEmpty)
+            .join('. ');
+        final has = narration.isNotEmpty;
+        final selected = i == selectedIndex;
+        return InkWell(
+          borderRadius: BorderRadius.circular(6),
+          onTap: () => onSelect(i),
+          child: Container(
+            decoration: BoxDecoration(
+              color: has
+                  ? AppColors.accentGreen.withValues(
+                      alpha: selected ? 0.20 : 0.10,
+                    )
+                  : Colors.black.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: selected && has
+                    ? AppColors.accentGreen.withValues(alpha: 0.7)
+                    : Colors.transparent,
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+            child: has
+                ? _Waveform(seed: narration, color: AppColors.accentGreen)
+                : const Center(
+                    child: Text(
+                      'silent',
+                      style: TextStyle(
+                        color: AppColors.textFaint,
+                        fontSize: 9.5,
+                      ),
+                    ),
+                  ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// The Music track: one continuous bed across the whole timeline.
+class _MusicTrack extends StatelessWidget {
+  const _MusicTrack({required this.seed});
+  final String seed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.accentAmber.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: AppColors.accentAmber.withValues(alpha: 0.25)),
       ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      child: _Waveform(seed: 'music-$seed', color: AppColors.accentAmber),
     );
   }
 }
@@ -358,11 +526,10 @@ class _Waveform extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Deterministic bar heights derived from the narration text.
     final codes = seed.codeUnits;
     return LayoutBuilder(
       builder: (context, c) {
-        final barCount = (c.maxWidth / 5).clamp(6, 48).floor();
+        final barCount = (c.maxWidth / 4).clamp(4, 120).floor();
         return Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -370,9 +537,9 @@ class _Waveform extends StatelessWidget {
             for (var i = 0; i < barCount; i++)
               Container(
                 width: 2,
-                height: 4 + (codes[i % codes.length] % 16).toDouble(),
+                height: 3 + (codes[(i * 7) % codes.length] % 14).toDouble(),
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.65),
+                  color: color.withValues(alpha: 0.6),
                   borderRadius: BorderRadius.circular(1),
                 ),
               ),

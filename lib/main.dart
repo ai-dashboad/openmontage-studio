@@ -67,7 +67,7 @@ class OpenMontageStudioApp extends StatelessWidget {
         authClient: auth,
         sessionStore: sessionStore ?? SessionStore(),
         initialAccount: initialAccount,
-        appBuilder: (session) => AppShell(
+        appBuilder: (session, requestSignIn) => AppShell(
           agentService: agentService,
           ttsClient: ttsClient,
           renderClient: renderClient,
@@ -75,6 +75,7 @@ class OpenMontageStudioApp extends StatelessWidget {
           providerManager: providerManager,
           projectStore: projectStore,
           session: session,
+          onRequestSignIn: requestSignIn,
         ),
       ),
     );
