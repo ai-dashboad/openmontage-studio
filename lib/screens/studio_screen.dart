@@ -97,6 +97,10 @@ class _StudioScreenState extends State<StudioScreen>
   int _railIndex = 4; // Start on the agent chat.
   bool _panelOpen = true;
 
+  /// Studio (full editor) vs Focus (distraction-free stage). From the design's
+  /// top-bar layout toggle.
+  bool _focus = false;
+
   // Preview playback: a ticker advances the playhead in real time.
   late final Ticker _ticker;
   bool _playing = false;
@@ -762,6 +766,8 @@ class _StudioScreenState extends State<StudioScreen>
             projectName: _projectName,
             provider: widget.provider,
             creditsLabel: _creditsLabel,
+            focusMode: _focus,
+            onToggleFocus: () => setState(() => _focus = !_focus),
             imagesEnabled: widget.mediaSettings.isActive,
             fetchingImages: _fetchingImages,
             onFetchImages: _fetchImages,
@@ -776,8 +782,9 @@ class _StudioScreenState extends State<StudioScreen>
           Expanded(
             child: Row(
               children: [
-                LeftRail(selected: _railIndex, onSelect: _onRailSelect),
-                if (_panelOpen)
+                if (!_focus)
+                  LeftRail(selected: _railIndex, onSelect: _onRailSelect),
+                if (!_focus && _panelOpen)
                   SidePanel(
                     railIndex: _railIndex,
                     chatIndex: _chatIndex,
@@ -794,7 +801,7 @@ class _StudioScreenState extends State<StudioScreen>
                     onTogglePlay: _togglePlay,
                   ),
                 ),
-                Inspector(
+                if (!_focus) Inspector(
                   scene: _scene,
                   stageName: _stageName,
                   sceneIndex: _selectedScene,
@@ -843,7 +850,7 @@ class _StudioScreenState extends State<StudioScreen>
             playheadSeconds: _playhead,
             onSelectScene: _selectScene,
           ),
-          const _CapabilityBar(),
+          if (!_focus) const _CapabilityBar(),
         ],
       ),
     );
