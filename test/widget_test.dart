@@ -224,6 +224,12 @@ void main() {
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
 
+    // The reply lands at the bottom of the chat list; on the compact test
+    // surface it can sit just below the fold, so scroll it into view.
+    await tester.ensureVisible(
+      find.text('Hook, body, payoff.', skipOffstage: false),
+    );
+    await tester.pumpAndSettle();
     expect(find.text('Hook, body, payoff.'), findsOneWidget);
   });
 
