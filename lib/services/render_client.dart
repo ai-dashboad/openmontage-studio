@@ -331,8 +331,14 @@ class RenderClient {
   // --- Remotion runtime ------------------------------------------------------
 
   Directory? _findComposer() {
+    final exeDir = File(Platform.resolvedExecutable).parent;
     final roots = <String>{Directory.current.path};
-    var d = File(Platform.resolvedExecutable).parent;
+    // Bundled location inside a packaged app: the engine ships next to the
+    // executable under Resources (macOS: Contents/Resources, where exeDir is
+    // Contents/MacOS) so a plain install renders cinematic without system Node.
+    roots.add('${exeDir.parent.path}/Resources');
+    roots.add(exeDir.path);
+    var d = exeDir;
     for (var i = 0; i < 12; i++) {
       roots.add(d.path);
       if (d.parent.path == d.path) break;
@@ -348,8 +354,30 @@ class RenderClient {
     return null;
   }
 
-  Future<bool> _remotionAvailable() async =>
-      _findComposer() != null && await _runner.exists('npx');
+  /// A Node runtime bundled with the app, if present — searched next to the
+  /// composer and under the app's Resources. Lets the cinematic runtime work on
+  /// a machine with no system Node. Returns the absolute `node` path or null.
+  String? _bundledNode(Directory composer) {
+    final exeDir = File(Platform.resolvedExecutable).parent;
+    final rel = Platform.isWindows ? 'node/node.exe' : 'node/bin/node';
+    final candidates = [
+      '${composer.parent.path}/$rel',
+      '${exeDir.parent.path}/Resources/$rel',
+      '${exeDir.path}/$rel',
+    ];
+    for (final p in candidates) {
+      if (File(p).existsSync()) return p;
+    }
+    return null;
+  }
+
+  /// Cinematic is available when the composer is present AND we can run Node —
+  /// either a bundled runtime (packaged app) or system `npx` (dev machine).
+  Future<bool> _remotionAvailable() async {
+    final composer = _findComposer();
+    if (composer == null) return false;
+    return _bundledNode(composer) != null || await _runner.exists('npx');
+  }
 
   List<Map<String, dynamic>>? _chartData(String subtitle) {
     final parts = subtitle.split(RegExp(r'[·,|/]|\s-\s'));
@@ -501,13 +529,30 @@ class RenderClient {
     File(propsPath).writeAsStringSync(jsonEncode(props));
 
     final finalPath = '${work.path}/render.mp4';
+    // Prefer the bundled Node runtime (packaged app); fall back to system npx
+    // (dev machine). Running the local Remotion CLI directly avoids any reliance
+    // on a globally installed npx.
+    final node = _bundledNode(composer);
+    final (String exe, List<String> args) = node != null
+        ? (
+            node,
+            [
+              '${composer.path}/node_modules/.bin/remotion', 'render',
+              '${composer.path}/src/index.tsx', 'Explainer', finalPath,
+              '--props', propsPath,
+            ],
+          )
+        : (
+            'npx',
+            [
+              'remotion', 'render',
+              '${composer.path}/src/index.tsx', 'Explainer', finalPath,
+              '--props', propsPath,
+            ],
+          );
     final r = await _runner.run(
-      'npx',
-      [
-        'remotion', 'render',
-        '${composer.path}/src/index.tsx', 'Explainer', finalPath,
-        '--props', propsPath,
-      ],
+      exe,
+      args,
       workingDirectory: composer.path,
       timeout: const Duration(seconds: 600),
     );
