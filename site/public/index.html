@@ -10,22 +10,27 @@
 <meta property="og:type" content="website" />
 <meta property="og:image" content="https://get.opencli.ai/assets/shot-stat.png" />
 <meta name="twitter:card" content="summary_large_image" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#08080B; --bg2:#0C0C12; --card:#111119; --border:#1E1E2A;
-    --text:#F4F4F6; --muted:#A1A1B0; --faint:#6A6A7C;
-    --cyan:#22D3EE; --purple:#A78BFA; --grad:linear-gradient(110deg,#22D3EE,#A78BFA 60%,#F472B6);
+    /* Open Montage palette — near-black base, layered panels, indigo accent */
+    --bg:#0E0E14; --bg2:#16161E; --card:#16161E; --border:#2A2A36;
+    --text:#ECECF0; --muted:#9696A8; --faint:#646476;
+    --cyan:#6366F1; --purple:#8B8DF3; --grad:linear-gradient(150deg,#8B8DF3,#6366F1 70%,#7C7FF5);
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html{scroll-behavior:smooth}
   body{
     background:var(--bg);color:var(--text);
-    font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+    font-family:Geist,-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
     line-height:1.55;-webkit-font-smoothing:antialiased;overflow-x:hidden;
   }
   a{color:inherit;text-decoration:none}
   .wrap{max-width:1120px;margin:0 auto;padding:0 24px}
-  .mono{font-family:"SF Mono",ui-monospace,Menlo,monospace}
+  .mono,.eyebrow{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace}
+  h1,.h2,.logo,.price-amt,.dl-name{font-family:"Space Grotesk",Geist,system-ui,sans-serif}
   .grad-text{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
   .btn{display:inline-flex;align-items:center;gap:8px;padding:13px 24px;border-radius:11px;font-weight:600;font-size:15px;cursor:pointer;transition:.18s;border:1px solid transparent}
   .btn-primary{background:#fff;color:#08080B}
