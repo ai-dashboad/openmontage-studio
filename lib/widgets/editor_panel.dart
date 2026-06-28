@@ -41,6 +41,8 @@ class EditorPanel extends StatefulWidget {
     this.onRevise,
     this.revising = false,
     this.onUploadFootage,
+    this.onGeneratePresenter,
+    this.generatingPresenter = false,
     this.onUndo,
     this.onRedo,
     this.canUndo = false,
@@ -73,6 +75,8 @@ class EditorPanel extends StatefulWidget {
   final VoidCallback? onUndo;
   final VoidCallback? onRedo;
   final VoidCallback? onUploadFootage;
+  final VoidCallback? onGeneratePresenter;
+  final bool generatingPresenter;
   final bool canUndo;
   final bool canRedo;
 
@@ -202,7 +206,11 @@ class _EditorPanelState extends State<EditorPanel> {
         onMoveLeft: widget.onMoveLeft,
         onMoveRight: widget.onMoveRight,
       ),
-      2 => _MediaTab(onUpload: widget.onUploadFootage),
+      2 => _MediaTab(
+        onUpload: widget.onUploadFootage,
+        onGeneratePresenter: widget.onGeneratePresenter,
+        generatingPresenter: widget.generatingPresenter,
+      ),
       3 => const _BrandTab(),
       _ => _AudioTab(
         voice: widget.voice,
@@ -974,8 +982,14 @@ class _ScenesTabState extends State<_ScenesTab> {
 // --- Media tab --------------------------------------------------------------
 
 class _MediaTab extends StatelessWidget {
-  const _MediaTab({this.onUpload});
+  const _MediaTab({
+    this.onUpload,
+    this.onGeneratePresenter,
+    this.generatingPresenter = false,
+  });
   final VoidCallback? onUpload;
+  final VoidCallback? onGeneratePresenter;
+  final bool generatingPresenter;
 
   @override
   Widget build(BuildContext context) {
@@ -1032,7 +1046,39 @@ class _MediaTab extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 14),
+        _sectionLabel('AI PRESENTER'),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: generatingPresenter ? null : onGeneratePresenter,
+            icon: generatingPresenter
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.accent2,
+                    ),
+                  )
+                : const Icon(Icons.face_retouching_natural, size: 16),
+            label: Text(
+              generatingPresenter ? 'Generating presenter…' : 'Generate digital human',
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.accent2,
+              side: const BorderSide(color: AppColors.borderStrong),
+              padding: const EdgeInsets.symmetric(vertical: 11),
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Turns the selected scene’s copy into a lip-synced presenter '
+          '(set a source in Settings — local free, or HeyGen/D-ID with your key).',
+          style: TextStyle(color: AppColors.textFaint, fontSize: 11.5, height: 1.4),
+        ),
+        const SizedBox(height: 14),
         const Text(
           'Upload your own footage and it renders behind the selected scene, '
           'with the headline as a caption — the basis of real-person / UGC ads. '

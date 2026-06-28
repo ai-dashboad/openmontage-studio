@@ -8,6 +8,7 @@ import '../models/studio_models.dart';
 import '../services/agent_service.dart';
 import '../services/auth_client.dart';
 import '../services/conversation.dart';
+import '../services/digital_human_settings.dart';
 import '../services/media_settings.dart';
 import '../services/project_store.dart';
 import '../services/provider_manager.dart';
@@ -127,6 +128,7 @@ class _StudioScreenState extends State<StudioScreen>
   bool _narrating = false;
   bool _revising = false;
   bool _fetchingImages = false;
+  bool _generatingPresenter = false;
 
   /// The signed-in user's credit balance (null until loaded / when unmetered).
   CreditStatus? _credits;
@@ -681,6 +683,51 @@ class _StudioScreenState extends State<StudioScreen>
     _toast('Footage added to "${_scene.title}"');
   }
 
+  /// Generates an AI digital-human presenter speaking the selected scene's copy
+  /// and drops it in as the scene's footage (reusing the UGC clip pipeline).
+  Future<void> _generatePresenter() async {
+    if (_generatingPresenter) return;
+    // Read fresh so the latest Settings choice is always reflected.
+    final dh = DigitalHumanSettings();
+    await dh.load();
+    if (!dh.isActive) {
+      _toast('Pick a digital-human source in Settings first.');
+      return;
+    }
+    final scene = _scene;
+    final script = [scene.headline, scene.subtitle]
+        .where((s) => s.isNotEmpty)
+        .join('. ');
+    if (script.isEmpty) {
+      _toast('Add a headline/subtitle for the presenter to say.');
+      return;
+    }
+    setState(() => _generatingPresenter = true);
+    _toast('Generating presenter… this can take a minute.');
+    try {
+      final clip = await dh.generate(script);
+      if (!mounted) return;
+      if (clip == null) {
+        _toast('No presenter returned — check the source/key in Settings.');
+        return;
+      }
+      final thumb = await widget.render.extractThumbnail(clip.path);
+      if (!mounted) return;
+      _updateScene(
+        scene.copyWith(
+          clipPath: clip.path,
+          type: 'presenter',
+          imageUrl: thumb ?? scene.imageUrl,
+        ),
+      );
+      _toast('Digital human added to "${scene.title}"');
+    } catch (e) {
+      if (mounted) _toast('Presenter failed — check the source/key.');
+    } finally {
+      if (mounted) setState(() => _generatingPresenter = false);
+    }
+  }
+
   /// Fetches a background image for every scene from the selected media source
   /// (using each scene's image query, falling back to its headline).
   Future<void> _fetchImages() async {
@@ -841,6 +888,8 @@ class _StudioScreenState extends State<StudioScreen>
                     onRevise: _revise,
                     revising: _revising,
                     onUploadFootage: _uploadFootage,
+                    onGeneratePresenter: _generatePresenter,
+                    generatingPresenter: _generatingPresenter,
                     onUndo: _undoEdit,
                     onRedo: _redoEdit,
                     canUndo: _undo.isNotEmpty,

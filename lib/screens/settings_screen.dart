@@ -4,6 +4,7 @@ import '../auth/account_session.dart';
 import '../models/catalog.dart';
 import '../services/auth_client.dart'
     show AuthException, ReferralStatus, ReferralTier;
+import '../services/digital_human_settings.dart';
 import '../services/media_settings.dart';
 import '../services/voice_settings.dart';
 import '../theme/app_theme.dart';
@@ -56,6 +57,8 @@ class SettingsScreen extends StatelessWidget {
                 _MediaSourceCard(media: mediaSettings!),
                 const SizedBox(height: 20),
               ],
+              const _DigitalHumanCard(),
+              const SizedBox(height: 20),
               for (final entry in byCapability.entries) ...[
                 _CapabilitySection(
                   capability: entry.key,
@@ -680,6 +683,133 @@ class _MediaSourceCardState extends State<_MediaSourceCard> {
               controller: _key,
               obscureText: true,
               onChanged: (v) => media.setKey(selected.id, v.trim()),
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: 'API key',
+                hintStyle: const TextStyle(color: AppColors.textFaint),
+                helperText: selected.keyHint,
+                helperStyle: const TextStyle(color: AppColors.textFaint),
+                filled: true,
+                fillColor: AppColors.background,
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AppColors.accentPurple),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Picks the digital-human (AI presenter) source and stores its key. The editor
+/// turns a scene's copy into a lip-synced presenter through the chosen source.
+class _DigitalHumanCard extends StatefulWidget {
+  const _DigitalHumanCard();
+
+  @override
+  State<_DigitalHumanCard> createState() => _DigitalHumanCardState();
+}
+
+class _DigitalHumanCardState extends State<_DigitalHumanCard> {
+  final DigitalHumanSettings _dh = DigitalHumanSettings();
+  final TextEditingController _key = TextEditingController();
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _dh.load().then((_) {
+      if (!mounted) return;
+      _key.text = _dh.keyFor(_dh.selectedId);
+      setState(() => _ready = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _key.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = _ready ? _dh.selected : _dh.sources.first;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.face_retouching_natural, size: 16,
+                  color: AppColors.accentPurple),
+              SizedBox(width: 8),
+              Text(
+                'Digital human (AI presenter)',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Local is free (needs a local lip-sync server + GPU); HeyGen/D-ID '
+            'use your own key (free trial, then paid).',
+            style: TextStyle(color: AppColors.textFaint, fontSize: 12),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: selected.id,
+                isExpanded: true,
+                dropdownColor: AppColors.surfaceHigh,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                ),
+                items: [
+                  for (final s in _dh.sources)
+                    DropdownMenuItem(value: s.id, child: Text(s.label)),
+                ],
+                onChanged: (id) async {
+                  if (id == null) return;
+                  await _dh.setSource(id);
+                  if (!mounted) return;
+                  _key.text = _dh.keyFor(id);
+                  setState(() {});
+                },
+              ),
+            ),
+          ),
+          if (selected.needsKey) ...[
+            const SizedBox(height: 10),
+            TextField(
+              controller: _key,
+              obscureText: true,
+              onChanged: (v) => _dh.setKey(selected.id, v.trim()),
               style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
               decoration: InputDecoration(
                 isDense: true,
