@@ -996,57 +996,7 @@ class _MediaTab extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(14),
       children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: AppColors.panel2,
-            borderRadius: BorderRadius.circular(9),
-            border: Border.all(color: AppColors.borderStrong),
-          ),
-          child: const Row(
-            children: [
-              Icon(Icons.search, size: 16, color: AppColors.textFaint),
-              SizedBox(width: 8),
-              Text(
-                'Search stock library…',
-                style: TextStyle(color: AppColors.textFaint, fontSize: 13),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        _sectionLabel('STOCK'),
-        GridView.count(
-          crossAxisCount: 2,
-          mainAxisSpacing: 9,
-          crossAxisSpacing: 9,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          children: [
-            for (final m in MockProject.imageAssets)
-              _MediaTile(label: m.label, accent: m.accent),
-            _MediaTile(label: 'Skyline', accent: AppColors.accentSky),
-          ],
-        ),
-        const SizedBox(height: 14),
-        InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: onUpload,
-          child: const DottedBorderBox(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.upload_outlined, size: 16, color: AppColors.textMuted),
-                SizedBox(width: 6),
-                Text(
-                  'Upload your footage',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 12.5),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 14),
+        // Primary people/footage actions first so they're never below the fold.
         _sectionLabel('AI PRESENTER'),
         SizedBox(
           width: double.infinity,
@@ -1074,20 +1024,67 @@ class _MediaTab extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         const Text(
-          'Turns the selected scene’s copy into a lip-synced presenter '
-          '(set a source in Settings — local free, or HeyGen/D-ID with your key).',
+          'AI-generated presenter speaking the selected scene’s copy. Set a '
+          'source in Settings — local (free), or HeyGen/D-ID with your key.',
           style: TextStyle(color: AppColors.textFaint, fontSize: 11.5, height: 1.4),
         ),
-        const SizedBox(height: 14),
-        const Text(
-          'Upload your own footage and it renders behind the selected scene, '
-          'with the headline as a caption — the basis of real-person / UGC ads. '
-          'Stock search and AI image backgrounds are configured in Settings.',
-          style: TextStyle(
-            color: AppColors.textFaint,
-            fontSize: 11.5,
-            height: 1.4,
+        const SizedBox(height: 16),
+        _sectionLabel('YOUR FOOTAGE'),
+        InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onUpload,
+          child: const DottedBorderBox(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.upload_outlined, size: 16, color: AppColors.textMuted),
+                SizedBox(width: 6),
+                Text(
+                  'Upload your footage',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 12.5),
+                ),
+              ],
+            ),
           ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Your own clip renders behind the selected scene with the headline as '
+          'a caption — the basis of real-person / UGC ads.',
+          style: TextStyle(color: AppColors.textFaint, fontSize: 11.5, height: 1.4),
+        ),
+        const SizedBox(height: 16),
+        _sectionLabel('STOCK'),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppColors.panel2,
+            borderRadius: BorderRadius.circular(9),
+            border: Border.all(color: AppColors.borderStrong),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.search, size: 16, color: AppColors.textFaint),
+              SizedBox(width: 8),
+              Text(
+                'Search stock library…',
+                style: TextStyle(color: AppColors.textFaint, fontSize: 13),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        GridView.count(
+          crossAxisCount: 2,
+          mainAxisSpacing: 9,
+          crossAxisSpacing: 9,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          children: [
+            for (final m in MockProject.imageAssets)
+              _MediaTile(label: m.label, accent: m.accent),
+            _MediaTile(label: 'Skyline', accent: AppColors.accentSky),
+          ],
         ),
       ],
     );
