@@ -266,12 +266,12 @@ class GeminiImageSource implements ImageSource {
     : _http = httpClient ?? http.Client();
   final http.Client _http;
 
-  static const _model = 'gemini-2.0-flash-preview-image-generation';
+  static const _model = 'gemini-2.5-flash-image';
 
   @override
   String get id => 'gemini';
   @override
-  String get label => 'Google · Gemini (AI, free tier)';
+  String get label => 'Google · Gemini (AI)';
   @override
   bool get needsKey => true;
   @override
