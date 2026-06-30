@@ -15,11 +15,26 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root{
-    /* Open Montage palette — near-black base, layered panels, indigo accent */
-    --bg:#0E0E14; --bg2:#16161E; --card:#16161E; --border:#2A2A36;
-    --text:#ECECF0; --muted:#9696A8; --faint:#646476;
-    --cyan:#6366F1; --purple:#8B8DF3; --grad:linear-gradient(150deg,#8B8DF3,#6366F1 70%,#7C7FF5);
+    /* Open Montage Flow — exact tokens from the app's design :root */
+    --bg:#07070c; --bg2:#0d0d16; --card:rgba(255,255,255,.045); --border:rgba(255,255,255,.09); --border2:rgba(255,255,255,.17);
+    --text:#F4F4F8; --muted:#a9a9bd; --faint:#62627a;
+    --cyan:#6366f1; --ind:#6366f1; --ind2:#8b8df3; --purple:#8b8df3; --vio:#a855f7; --cya:#38bdf8;
+    --grad:linear-gradient(135deg,#8b8df3,#6366f1 45%,#a855f7);
   }
+  @keyframes om-shimmer{to{background-position:300% 0}}
+  @keyframes om-a1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(6vw,5vh) scale(1.18)}}
+  @keyframes om-a2{0%,100%{transform:translate(0,0) scale(1.1)}50%{transform:translate(-5vw,-4vh) scale(.88)}}
+  /* Aurora backdrop — three blooms + grid, behind all content. */
+  body::before{content:"";position:fixed;inset:-20vmax;z-index:-2;pointer-events:none;filter:blur(40px);
+    background:
+      radial-gradient(45vmax 45vmax at 18% 8%,rgba(99,102,241,.45),transparent 60%),
+      radial-gradient(42vmax 42vmax at 88% 96%,rgba(168,85,247,.4),transparent 62%),
+      radial-gradient(32vmax 32vmax at 82% 22%,rgba(56,189,248,.28),transparent 66%);
+    animation:om-a1 26s ease-in-out infinite}
+  body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+    background-image:linear-gradient(rgba(255,255,255,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.02) 1px,transparent 1px);
+    background-size:46px 46px;
+    mask-image:radial-gradient(120% 90% at 50% 30%,#000 50%,transparent 100%)}
   *{box-sizing:border-box;margin:0;padding:0}
   html{scroll-behavior:smooth}
   body{
@@ -31,7 +46,7 @@
   .wrap{max-width:1120px;margin:0 auto;padding:0 24px}
   .mono,.eyebrow{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace}
   h1,.h2,.logo,.price-amt,.dl-name{font-family:"Space Grotesk",Geist,system-ui,sans-serif}
-  .grad-text{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .grad-text{background:linear-gradient(90deg,#f4f4f8,#8b8df3,#a855f7,#38bdf8,#f4f4f8);background-size:300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:om-shimmer 7s linear infinite}
   .btn{display:inline-flex;align-items:center;gap:8px;padding:13px 24px;border-radius:11px;font-weight:600;font-size:15px;cursor:pointer;transition:.18s;border:1px solid transparent}
   .btn-primary{background:#fff;color:#08080B}
   .btn-primary:hover{transform:translateY(-1px);box-shadow:0 12px 40px -8px rgba(167,139,250,.5)}
@@ -50,7 +65,8 @@
   .hero{position:relative;text-align:center;padding:96px 0 40px}
   .pill{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);
     border:1px solid var(--border);border-radius:999px;padding:6px 14px;margin-bottom:28px;background:rgba(255,255,255,.02)}
-  .pill .ring{width:7px;height:7px;border-radius:50%;background:var(--cyan);box-shadow:0 0 10px var(--cyan)}
+  .pill .ring{width:7px;height:7px;border-radius:50%;background:var(--cya);box-shadow:0 0 10px var(--cya)}
+  .btn-primary{background:var(--grad);color:#fff;box-shadow:0 10px 30px -8px rgba(99,102,241,.55)}
   h1{font-size:clamp(40px,7vw,76px);line-height:1.02;font-weight:800;letter-spacing:-.03em}
   .sub{margin:24px auto 0;max-width:620px;font-size:clamp(17px,2.2vw,20px);color:var(--muted)}
   .cta{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-top:34px}
@@ -153,9 +169,9 @@
   <div class="glow" style="width:620px;height:620px;background:#22D3EE;top:-220px;left:50%;transform:translateX(-60%)"></div>
   <div class="glow" style="width:520px;height:520px;background:#A78BFA;top:-160px;left:50%;transform:translateX(10%)"></div>
   <div class="wrap" style="position:relative;z-index:1">
-    <span class="pill"><span class="ring"></span> Describe it · we direct it · runs on your machine</span>
-    <h1>The AI ad studio.<br><span class="grad-text">Describe an ad. Ship it.</span></h1>
-    <p class="sub">Write a brief in plain language. Open Montage scripts it, storyboards the scenes, picks the footage, adds voiceover and music, and lays it on a timeline you can edit — a finished, on-brand ad in minutes.</p>
+    <span class="pill mono"><span class="ring"></span> AI VIDEO AD GENERATOR</span>
+    <h1><span class="grad-text">Describe it.<br>Watch it build.</span></h1>
+    <p class="sub">Type one line. Open Montage scripts, storyboards, shoots, voices and edits a finished ad in front of you — in seconds.</p>
     <div class="cta">
       <a class="btn btn-primary dl-primary" href="/download/OpenMontageStudio.dmg">⬇ Download for macOS</a>
       <a class="btn btn-ghost" href="#how">See how it works</a>
