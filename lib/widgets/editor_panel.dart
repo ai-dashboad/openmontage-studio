@@ -43,6 +43,8 @@ class EditorPanel extends StatefulWidget {
     this.onUploadFootage,
     this.onGeneratePresenter,
     this.generatingPresenter = false,
+    this.onGenerateVideo,
+    this.generatingVideo = false,
     this.onUndo,
     this.onRedo,
     this.canUndo = false,
@@ -77,6 +79,8 @@ class EditorPanel extends StatefulWidget {
   final VoidCallback? onUploadFootage;
   final VoidCallback? onGeneratePresenter;
   final bool generatingPresenter;
+  final VoidCallback? onGenerateVideo;
+  final bool generatingVideo;
   final bool canUndo;
   final bool canRedo;
 
@@ -210,6 +214,8 @@ class _EditorPanelState extends State<EditorPanel> {
         onUpload: widget.onUploadFootage,
         onGeneratePresenter: widget.onGeneratePresenter,
         generatingPresenter: widget.generatingPresenter,
+        onGenerateVideo: widget.onGenerateVideo,
+        generatingVideo: widget.generatingVideo,
       ),
       3 => const _BrandTab(),
       _ => _AudioTab(
@@ -986,17 +992,48 @@ class _MediaTab extends StatelessWidget {
     this.onUpload,
     this.onGeneratePresenter,
     this.generatingPresenter = false,
+    this.onGenerateVideo,
+    this.generatingVideo = false,
   });
   final VoidCallback? onUpload;
   final VoidCallback? onGeneratePresenter;
   final bool generatingPresenter;
+  final VoidCallback? onGenerateVideo;
+  final bool generatingVideo;
 
   @override
   Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.all(14),
       children: [
-        // Primary people/footage actions first so they're never below the fold.
+        // Primary AI/footage actions first so they're never below the fold.
+        _sectionLabel('AI VIDEO'),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: generatingVideo ? null : onGenerateVideo,
+            icon: generatingVideo
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.movie_filter_outlined, size: 16),
+            label: Text(generatingVideo ? 'Generating video…' : 'Generate AI video'),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.accent,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 11),
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Real generative video (text→motion) for the selected scene. Set a '
+          'source in Settings — Veo/Runway with your key, or local (GPU).',
+          style: TextStyle(color: AppColors.textFaint, fontSize: 11.5, height: 1.4),
+        ),
+        const SizedBox(height: 16),
         _sectionLabel('AI PRESENTER'),
         SizedBox(
           width: double.infinity,

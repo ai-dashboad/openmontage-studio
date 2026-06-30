@@ -10,6 +10,7 @@ import '../services/auth_client.dart';
 import '../services/conversation.dart';
 import '../services/digital_human_settings.dart';
 import '../services/media_settings.dart';
+import '../services/video_settings.dart';
 import '../services/project_store.dart';
 import '../services/provider_manager.dart';
 import '../services/render_client.dart';
@@ -129,6 +130,7 @@ class _StudioScreenState extends State<StudioScreen>
   bool _revising = false;
   bool _fetchingImages = false;
   bool _generatingPresenter = false;
+  bool _generatingVideo = false;
 
   /// The signed-in user's credit balance (null until loaded / when unmetered).
   CreditStatus? _credits;
@@ -728,6 +730,50 @@ class _StudioScreenState extends State<StudioScreen>
     }
   }
 
+  /// Generates real AI video (text/image→video) for the selected scene from its
+  /// copy and drops it in as the scene's footage (reuses the UGC pipeline).
+  Future<void> _generateVideo() async {
+    if (_generatingVideo) return;
+    final vs = VideoSettings();
+    await vs.load();
+    if (!vs.isActive) {
+      _toast('Pick an AI-video source in Settings first.');
+      return;
+    }
+    final scene = _scene;
+    final prompt = [scene.headline, scene.subtitle]
+        .where((s) => s.isNotEmpty)
+        .join('. ');
+    if (prompt.isEmpty) {
+      _toast('Add a headline/subtitle to describe the video.');
+      return;
+    }
+    setState(() => _generatingVideo = true);
+    _toast('Generating AI video… this can take a few minutes.');
+    try {
+      final clip = await vs.generate(prompt, initImagePath: scene.imageUrl);
+      if (!mounted) return;
+      if (clip == null) {
+        _toast('No video returned — check the source/key in Settings.');
+        return;
+      }
+      final thumb = await widget.render.extractThumbnail(clip.path);
+      if (!mounted) return;
+      _updateScene(
+        scene.copyWith(
+          clipPath: clip.path,
+          type: 'ai_video',
+          imageUrl: thumb ?? scene.imageUrl,
+        ),
+      );
+      _toast('AI video added to "${scene.title}"');
+    } catch (e) {
+      if (mounted) _toast('Video generation failed — check the source/key.');
+    } finally {
+      if (mounted) setState(() => _generatingVideo = false);
+    }
+  }
+
   /// Fetches a background image for every scene from the selected media source
   /// (using each scene's image query, falling back to its headline).
   Future<void> _fetchImages() async {
@@ -890,6 +936,8 @@ class _StudioScreenState extends State<StudioScreen>
                     onUploadFootage: _uploadFootage,
                     onGeneratePresenter: _generatePresenter,
                     generatingPresenter: _generatingPresenter,
+                    onGenerateVideo: _generateVideo,
+                    generatingVideo: _generatingVideo,
                     onUndo: _undoEdit,
                     onRedo: _redoEdit,
                     canUndo: _undo.isNotEmpty,

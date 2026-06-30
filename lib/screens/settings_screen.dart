@@ -6,6 +6,7 @@ import '../services/auth_client.dart'
     show AuthException, ReferralStatus, ReferralTier;
 import '../services/digital_human_settings.dart';
 import '../services/media_settings.dart';
+import '../services/video_settings.dart';
 import '../services/voice_settings.dart';
 import '../theme/app_theme.dart';
 
@@ -57,6 +58,8 @@ class SettingsScreen extends StatelessWidget {
                 _MediaSourceCard(media: mediaSettings!),
                 const SizedBox(height: 20),
               ],
+              const _VideoSourceCard(),
+              const SizedBox(height: 20),
               const _DigitalHumanCard(),
               const SizedBox(height: 20),
               for (final entry in byCapability.entries) ...[
@@ -810,6 +813,133 @@ class _DigitalHumanCardState extends State<_DigitalHumanCard> {
               controller: _key,
               obscureText: true,
               onChanged: (v) => _dh.setKey(selected.id, v.trim()),
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: 'API key',
+                hintStyle: const TextStyle(color: AppColors.textFaint),
+                helperText: selected.keyHint,
+                helperStyle: const TextStyle(color: AppColors.textFaint),
+                filled: true,
+                fillColor: AppColors.background,
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AppColors.accentPurple),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Picks the AI-video (text→video) source and stores its key. The editor turns a
+/// scene's copy into real generative motion through the chosen source.
+class _VideoSourceCard extends StatefulWidget {
+  const _VideoSourceCard();
+
+  @override
+  State<_VideoSourceCard> createState() => _VideoSourceCardState();
+}
+
+class _VideoSourceCardState extends State<_VideoSourceCard> {
+  final VideoSettings _v = VideoSettings();
+  final TextEditingController _key = TextEditingController();
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _v.load().then((_) {
+      if (!mounted) return;
+      _key.text = _v.keyFor(_v.selectedId);
+      setState(() => _ready = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _key.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = _ready ? _v.selected : _v.sources.first;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.movie_filter_outlined, size: 16,
+                  color: AppColors.accentPurple),
+              SizedBox(width: 8),
+              Text(
+                'AI video (generative motion)',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Real text→video. Veo/Runway use your key (paid); local is free but '
+            'needs a GPU text-to-video server.',
+            style: TextStyle(color: AppColors.textFaint, fontSize: 12),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: selected.id,
+                isExpanded: true,
+                dropdownColor: AppColors.surfaceHigh,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                ),
+                items: [
+                  for (final s in _v.sources)
+                    DropdownMenuItem(value: s.id, child: Text(s.label)),
+                ],
+                onChanged: (id) async {
+                  if (id == null) return;
+                  await _v.setSource(id);
+                  if (!mounted) return;
+                  _key.text = _v.keyFor(id);
+                  setState(() {});
+                },
+              ),
+            ),
+          ),
+          if (selected.needsKey) ...[
+            const SizedBox(height: 10),
+            TextField(
+              controller: _key,
+              obscureText: true,
+              onChanged: (val) => _v.setKey(selected.id, val.trim()),
               style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
               decoration: InputDecoration(
                 isDense: true,
