@@ -182,6 +182,11 @@ void main() {
     await tester.tap(find.text('Generate'));
     await tester.pumpAndSettle();
 
+    // Generation lands on the Result screen; editing is opt-in.
+    expect(find.text('Your ad is ready.'), findsOneWidget);
+    await tester.tap(find.text('Open in editor'));
+    await tester.pumpAndSettle();
+
     // The studio is driven by the agent's generated scenes, not the sample.
     expect(find.text('Cosmic Hook'), findsWidgets);
     expect(find.text('Megacities'), findsNothing);

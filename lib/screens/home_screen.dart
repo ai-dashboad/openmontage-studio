@@ -8,6 +8,7 @@ import '../services/update_checker.dart';
 import '../theme/app_theme.dart';
 import '../widgets/aurora_background.dart';
 import 'generating_screen.dart';
+import 'result_screen.dart';
 
 /// The launcher: a brief composer to start a video, a live engine status, and
 /// recent renders. This is the "what can you do" entry point.
@@ -49,6 +50,12 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _brief = TextEditingController();
   bool _planning = false;
   bool _cancelled = false;
+
+  // The finished plan sits on the Result screen until the user opens the editor.
+  List<Scene>? _resultScenes;
+  String? _resultBrief;
+  bool _resultReal = false;
+  String _lastSuffix = '';
   UpdateInfo? _update;
   List<StudioProject> _projects = const [];
 
@@ -91,6 +98,7 @@ class _HomeScreenState extends State<HomeScreen> {
       widget.onOpenProject(null, null);
       return;
     }
+    _lastSuffix = suffix;
     setState(() {
       _cancelled = false;
       _planning = true;
@@ -98,11 +106,19 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final scenes = await widget.agent.planScenes('$brief$suffix');
       if (!mounted || _cancelled) return;
-      widget.onOpenProject(scenes, brief);
+      setState(() {
+        _resultScenes = scenes;
+        _resultBrief = brief;
+        _resultReal = true;
+      });
     } catch (_) {
-      // Agent unreachable or unparseable — fall back to the sample plan.
+      // Agent unreachable or unparseable — preview the sample plan instead.
       if (!mounted || _cancelled) return;
-      widget.onOpenProject(null, brief);
+      setState(() {
+        _resultScenes = MockProject.scenes;
+        _resultBrief = brief;
+        _resultReal = false;
+      });
     } finally {
       if (mounted) setState(() => _planning = false);
     }
@@ -113,6 +129,7 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _cancelled = true;
       _planning = false;
+      _resultScenes = null;
     });
   }
 
@@ -130,6 +147,20 @@ class _HomeScreenState extends State<HomeScreen> {
       return GeneratingScreen(
         promptEcho: _brief.text.trim(),
         onCancel: _cancelGenerate,
+      );
+    }
+    // When the plan is ready, preview the finished ad on the Result screen.
+    // Editing is optional — only "Open in editor" enters the studio.
+    if (_resultScenes != null) {
+      return ResultScreen(
+        scenes: _resultScenes!,
+        onOpenEditor: () =>
+            widget.onOpenProject(_resultReal ? _resultScenes : null, _resultBrief),
+        onNewAd: () => setState(() => _resultScenes = null),
+        onRegenerate: () {
+          setState(() => _resultScenes = null);
+          _createWith(_lastSuffix);
+        },
       );
     }
     return Scaffold(
