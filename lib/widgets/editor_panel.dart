@@ -45,6 +45,8 @@ class EditorPanel extends StatefulWidget {
     this.generatingPresenter = false,
     this.onGenerateVideo,
     this.generatingVideo = false,
+    this.onPickPresenterPhoto,
+    this.presenterPhotoSet = false,
     this.onUndo,
     this.onRedo,
     this.canUndo = false,
@@ -81,6 +83,8 @@ class EditorPanel extends StatefulWidget {
   final bool generatingPresenter;
   final VoidCallback? onGenerateVideo;
   final bool generatingVideo;
+  final VoidCallback? onPickPresenterPhoto;
+  final bool presenterPhotoSet;
   final bool canUndo;
   final bool canRedo;
 
@@ -216,6 +220,8 @@ class _EditorPanelState extends State<EditorPanel> {
         generatingPresenter: widget.generatingPresenter,
         onGenerateVideo: widget.onGenerateVideo,
         generatingVideo: widget.generatingVideo,
+        onPickPresenterPhoto: widget.onPickPresenterPhoto,
+        presenterPhotoSet: widget.presenterPhotoSet,
       ),
       3 => const _BrandTab(),
       _ => _AudioTab(
@@ -994,12 +1000,16 @@ class _MediaTab extends StatelessWidget {
     this.generatingPresenter = false,
     this.onGenerateVideo,
     this.generatingVideo = false,
+    this.onPickPresenterPhoto,
+    this.presenterPhotoSet = false,
   });
   final VoidCallback? onUpload;
   final VoidCallback? onGeneratePresenter;
   final bool generatingPresenter;
   final VoidCallback? onGenerateVideo;
   final bool generatingVideo;
+  final VoidCallback? onPickPresenterPhoto;
+  final bool presenterPhotoSet;
 
   @override
   Widget build(BuildContext context) {
@@ -1065,6 +1075,26 @@ class _MediaTab extends StatelessWidget {
           'source in Settings — local (free), or HeyGen/D-ID with your key.',
           style: TextStyle(color: AppColors.textFaint, fontSize: 11.5, height: 1.4),
         ),
+        if (onPickPresenterPhoto != null)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: onPickPresenterPhoto,
+              icon: Icon(
+                presenterPhotoSet
+                    ? Icons.check_circle
+                    : Icons.add_a_photo_outlined,
+                size: 15,
+              ),
+              label: Text(presenterPhotoSet ? 'Your photo set' : 'Use my photo'),
+              style: TextButton.styleFrom(
+                foregroundColor: presenterPhotoSet
+                    ? AppColors.accentGreen
+                    : AppColors.accent2,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+              ),
+            ),
+          ),
         const SizedBox(height: 16),
         _sectionLabel('YOUR FOOTAGE'),
         InkWell(

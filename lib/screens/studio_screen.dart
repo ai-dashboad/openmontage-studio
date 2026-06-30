@@ -133,6 +133,9 @@ class _StudioScreenState extends State<StudioScreen>
   bool _generatingPresenter = false;
   bool _generatingVideo = false;
 
+  /// An optional portrait photo so the digital human uses the user's own face.
+  String _presenterPhoto = '';
+
   /// The signed-in user's credit balance (null until loaded / when unmetered).
   CreditStatus? _credits;
 
@@ -693,6 +696,15 @@ class _StudioScreenState extends State<StudioScreen>
     _toast('Footage added to "${_scene.title}"');
   }
 
+  /// Picks a portrait photo so the digital human speaks with the user's face.
+  Future<void> _pickPresenterPhoto() async {
+    const group = XTypeGroup(label: 'Photo', extensions: ['jpg', 'jpeg', 'png']);
+    final file = await openFile(acceptedTypeGroups: const [group]);
+    if (file == null || !mounted) return;
+    setState(() => _presenterPhoto = file.path);
+    _toast('Presenter photo set — your face will drive the digital human.');
+  }
+
   /// Generates an AI digital-human presenter speaking the selected scene's copy
   /// and drops it in as the scene's footage (reusing the UGC clip pipeline).
   Future<void> _generatePresenter() async {
@@ -715,7 +727,7 @@ class _StudioScreenState extends State<StudioScreen>
     setState(() => _generatingPresenter = true);
     _toast('Generating presenter… this can take a minute.');
     try {
-      final clip = await dh.generate(script);
+      final clip = await dh.generate(script, portraitPath: _presenterPhoto);
       if (!mounted) return;
       if (clip == null) {
         _toast('No presenter returned — check the source/key in Settings.');
@@ -945,6 +957,8 @@ class _StudioScreenState extends State<StudioScreen>
                     onUploadFootage: _uploadFootage,
                     onGeneratePresenter: _generatePresenter,
                     generatingPresenter: _generatingPresenter,
+                    onPickPresenterPhoto: _pickPresenterPhoto,
+                    presenterPhotoSet: _presenterPhoto.isNotEmpty,
                     onGenerateVideo: _generateVideo,
                     generatingVideo: _generatingVideo,
                     onUndo: _undoEdit,

@@ -26,6 +26,7 @@ abstract class DigitalHumanSource {
   Future<PresenterClip?> generate(
     String script, {
     String key = '',
+    String portraitPath = '',
     Duration pollInterval = const Duration(seconds: 3),
     Duration maxWait = const Duration(minutes: 5),
   });
@@ -46,6 +47,7 @@ class NoneDigitalHuman implements DigitalHumanSource {
   Future<PresenterClip?> generate(
     String script, {
     String key = '',
+    String portraitPath = '',
     Duration pollInterval = const Duration(seconds: 3),
     Duration maxWait = const Duration(minutes: 5),
   }) async => null;
@@ -82,6 +84,7 @@ class HeyGenSource implements DigitalHumanSource {
   Future<PresenterClip?> generate(
     String script, {
     String key = '',
+    String portraitPath = '',
     Duration pollInterval = const Duration(seconds: 3),
     Duration maxWait = const Duration(minutes: 5),
   }) async {
@@ -159,6 +162,7 @@ class DidSource implements DigitalHumanSource {
   Future<PresenterClip?> generate(
     String script, {
     String key = '',
+    String portraitPath = '',
     Duration pollInterval = const Duration(seconds: 3),
     Duration maxWait = const Duration(minutes: 5),
   }) async {
@@ -228,15 +232,23 @@ class LocalLipSyncSource implements DigitalHumanSource {
   Future<PresenterClip?> generate(
     String script, {
     String key = '',
+    String portraitPath = '',
     Duration pollInterval = const Duration(seconds: 3),
     Duration maxWait = const Duration(minutes: 5),
   }) async {
     if (script.trim().isEmpty) return null;
+    // Drive the user's own face when a portrait photo is supplied.
+    final portrait = portraitPath.isNotEmpty && File(portraitPath).existsSync()
+        ? base64Encode(await File(portraitPath).readAsBytes())
+        : null;
     final res = await _http
         .post(
           Uri.parse('$_endpoint/generate'),
           headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({'script': script}),
+          body: jsonEncode({
+            'script': script,
+            'portrait': ?portrait,
+          }),
         )
         .timeout(maxWait);
     if (res.statusCode != 200) {

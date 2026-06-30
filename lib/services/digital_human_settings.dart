@@ -66,10 +66,10 @@ class DigitalHumanSettings {
 
   /// Generates a presenter clip for [script] via the selected source. Null when
   /// the source is "none", the script is empty, or generation fails.
-  Future<PresenterClip?> generate(String script) async {
+  Future<PresenterClip?> generate(String script, {String portraitPath = ''}) async {
     await load();
     final src = selected;
     if (src.id == 'none' || script.trim().isEmpty) return null;
-    return src.generate(script, key: keyFor(src.id));
+    return src.generate(script, key: keyFor(src.id), portraitPath: portraitPath);
   }
 }
