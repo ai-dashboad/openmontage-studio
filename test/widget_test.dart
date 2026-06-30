@@ -134,7 +134,7 @@ Future<void> _boot(
 }
 
 Future<void> _enterStudio(WidgetTester tester) async {
-  await tester.tap(find.text('Generate ad'));
+  await tester.tap(find.text('Generate'));
   await tester.pumpAndSettle();
 }
 
@@ -143,8 +143,8 @@ void main() {
     await _boot(tester);
 
     expect(find.text('Open Montage'), findsOneWidget);
-    expect(find.text('What ad are we making today?'), findsOneWidget);
-    expect(find.text('Generate ad'), findsOneWidget);
+    expect(find.textContaining('Watch it build'), findsOneWidget);
+    expect(find.text('Generate'), findsOneWidget);
   });
 
   testWidgets('home shows an update banner when a newer version exists', (
@@ -179,7 +179,7 @@ void main() {
       find.byType(TextField).first,
       'a 30s explainer on black holes',
     );
-    await tester.tap(find.text('Generate ad'));
+    await tester.tap(find.text('Generate'));
     await tester.pumpAndSettle();
 
     // The studio is driven by the agent's generated scenes, not the sample.
@@ -448,7 +448,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // No session -> straight into the app as a guest (no wall).
-    expect(find.text('What ad are we making today?'), findsOneWidget);
+    expect(find.textContaining('Watch it build'), findsOneWidget);
     // A guest can reach sign-in from the header.
     expect(find.widgetWithText(TextButton, 'Sign in'), findsOneWidget);
 
@@ -466,7 +466,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Back to the home launcher, now signed in.
-    expect(find.text('What ad are we making today?'), findsOneWidget);
+    expect(find.textContaining('Watch it build'), findsOneWidget);
   });
 
   testWidgets('register mode shows the marketing consent opt-in', (

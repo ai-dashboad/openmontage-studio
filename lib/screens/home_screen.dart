@@ -6,6 +6,7 @@ import '../services/project_store.dart';
 import '../services/provider_manager.dart';
 import '../services/update_checker.dart';
 import '../theme/app_theme.dart';
+import '../widgets/aurora_background.dart';
 
 /// The launcher: a brief composer to start a video, a live engine status, and
 /// recent renders. This is the "what can you do" entry point.
@@ -112,7 +113,9 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
+      backgroundColor: AppColors.app,
+      body: AuroraBackground(
+        child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 860),
           child: ListView(
@@ -153,6 +156,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }
@@ -262,20 +266,34 @@ class _BriefHeroState extends State<_BriefHero> {
     ('16:9', 'Wide'),
   ];
   static const _lengths = ['10s', '15s', '30s'];
-  static const _tones = ['Bold', 'Playful', 'Premium', 'Calm'];
-  static const _examples = [
-    'A 15-second Reels ad for our AI productivity app launch',
-    'A punchy product drop for a new sneaker',
-    'A founder-led teaser for our seed round',
+  static const _tones = ['Energetic', 'Bold', 'Playful', 'Premium', 'Cinematic'];
+  static const _styles = ['Dynamic', 'Presenter', 'Cinematic', 'Animated'];
+
+  /// (short chip label, full brief) — matches the design's example set.
+  static const List<(String, String)> _examples = [
+    ('15s Reels — AI app launch',
+        'A 15-second Reels ad for our AI productivity app launch — bold and fast, ending on a free-trial CTA.'),
+    ('⚽ FIFA 2026 prediction giveaway',
+        'A 15-second story ad for a FIFA 2026 score-prediction giveaway — comment your final score before kickoff to win a promo code. Hype, energetic, emoji-friendly.'),
+    ('🔥 Flash sale — 50% off',
+        'A 15-second story ad for a sitewide flash sale — up to 50% off, 48 hours only, urgent and bold, ending on a shop-now CTA.'),
+    ('🍝 Restaurant grand opening',
+        'A 15-second story ad for a restaurant grand opening — handmade food, 2-for-1 opening week, warm and inviting, ending on a book-a-table CTA.'),
+    ('🎓 Free AI masterclass',
+        'A 15-second story ad for a free live AI masterclass — no fluff, limited seats this Thursday, ending on a register-free CTA.'),
+    ('Square feed — summer sale',
+        'A square feed ad for a summer sale, 30% off everything, playful and bright.'),
+    ('YouTube pre-roll — fintech',
+        'A YouTube pre-roll for a fintech app — calm and premium, building trust in 6 seconds.'),
   ];
 
-  int _fmt = 0, _len = 1, _tone = 0; // default 15s to match the sample copy
+  int _fmt = 0, _len = 1, _tone = 1, _style = 0; // 15s · Bold · Dynamic
 
   void _generate() {
     final f = _formats[_fmt];
     final suffix =
         ' — Make it a ${_lengths[_len]} ${f.$2} (${f.$1}) ad, '
-        '${_tones[_tone].toLowerCase()} tone.';
+        '${_tones[_tone].toLowerCase()} tone, ${_styles[_style].toLowerCase()} style.';
     widget.onGenerate(suffix);
   }
 
@@ -285,34 +303,39 @@ class _BriefHeroState extends State<_BriefHero> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(
-          'DESCRIBE IT · WE DIRECT IT',
-          style: AppTheme.mono.copyWith(
-            color: AppColors.accent2,
-            fontSize: 12,
-            letterSpacing: 2.4,
+        const _EyebrowPill(text: 'AI VIDEO AD GENERATOR'),
+        const SizedBox(height: 22),
+        // Gradient-shimmer headline — "Describe it. Watch it build."
+        ShaderMask(
+          shaderCallback: (rect) => const LinearGradient(
+            colors: [
+              Color(0xFFF4F4F8),
+              Color(0xFF8B8DF3),
+              Color(0xFFA855F7),
+              Color(0xFF38BDF8),
+              Color(0xFFF4F4F8),
+            ],
+          ).createShader(rect),
+          child: Text(
+            'Describe it.\nWatch it build.',
+            textAlign: TextAlign.center,
+            style: AppTheme.heading.copyWith(
+              color: Colors.white,
+              fontSize: 54,
+              height: 1.02,
+              letterSpacing: -1.2,
+            ),
           ),
         ),
-        const SizedBox(height: 16),
-        Text(
-          'What ad are we making today?',
-          textAlign: TextAlign.center,
-          style: AppTheme.heading.copyWith(
-            color: AppColors.textPrimary,
-            fontSize: 40,
-            height: 1.05,
-          ),
-        ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 18),
         const Text(
-          'Write a brief in plain language. Open Montage scripts it, '
-          'storyboards the scenes, picks the footage, and lays it on a '
-          'timeline you can edit.',
+          'Type one line. Open Montage scripts, storyboards, shoots, voices and '
+          'edits a finished ad in front of you — in seconds.',
           textAlign: TextAlign.center,
           style: TextStyle(
             color: AppColors.textMuted,
-            fontSize: 15,
-            height: 1.5,
+            fontSize: 16,
+            height: 1.55,
           ),
         ),
         const SizedBox(height: 28),
@@ -447,7 +470,29 @@ class _BriefHeroState extends State<_BriefHero> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 220, height: 0), // spacer pushes CTA
+                    _ControlGroup(
+                      label: 'STYLE',
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (var i = 0; i < _styles.length; i++)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 6),
+                              child: _Chip(
+                                active: _style == i,
+                                onTap: planning
+                                    ? null
+                                    : () => setState(() => _style = i),
+                                child: Text(_styles[i],
+                                    style: const TextStyle(
+                                        color: AppColors.textPrimary,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600)),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
                     FilledButton.icon(
                       onPressed: planning ? null : _generate,
                       icon: planning
@@ -457,7 +502,7 @@ class _BriefHeroState extends State<_BriefHero> {
                               child: CircularProgressIndicator(
                                   strokeWidth: 2, color: Colors.white))
                           : const Icon(Icons.auto_awesome, size: 17),
-                      label: Text(planning ? 'Directing…' : 'Generate ad'),
+                      label: Text(planning ? 'Directing…' : 'Generate'),
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.accent,
                         foregroundColor: Colors.white,
@@ -484,11 +529,54 @@ class _BriefHeroState extends State<_BriefHero> {
             ),
             for (final ex in _examples)
               _ExampleChip(
-                  label: ex,
-                  onTap: planning ? null : () => widget.onExample(ex)),
+                  label: ex.$1,
+                  onTap: planning ? null : () => widget.onExample(ex.$2)),
           ],
         ),
       ],
+    );
+  }
+}
+
+/// The rounded eyebrow pill from the design: a glowing cyan dot + a mono label.
+class _EyebrowPill extends StatelessWidget {
+  const _EyebrowPill({required this.text});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.panel2,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.borderStrong),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: AppColors.accentSky,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(color: AppColors.accentSky, blurRadius: 8),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            text,
+            style: AppTheme.mono.copyWith(
+              color: AppColors.accent2,
+              fontSize: 11,
+              letterSpacing: 1.6,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
