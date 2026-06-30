@@ -8,6 +8,8 @@ import '../services/update_checker.dart';
 import '../theme/app_theme.dart';
 import '../widgets/aurora_background.dart';
 import 'generating_screen.dart';
+import 'invite_screen.dart';
+import 'pricing_screen.dart';
 import 'result_screen.dart';
 
 /// The launcher: a brief composer to start a video, a live engine status, and
@@ -56,6 +58,8 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _resultBrief;
   bool _resultReal = false;
   String _lastSuffix = '';
+  bool _showPricing = false;
+  bool _showInvite = false;
   UpdateInfo? _update;
   List<StudioProject> _projects = const [];
 
@@ -142,6 +146,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_showPricing) {
+      return PricingScreen(
+        onBack: () => setState(() => _showPricing = false),
+        onInvite: () => setState(() {
+          _showPricing = false;
+          _showInvite = true;
+        }),
+        onSelectPlan: () => setState(() => _showPricing = false),
+      );
+    }
+    if (_showInvite) {
+      return InviteScreen(onBack: () => setState(() => _showInvite = false));
+    }
     // While the agent plans the ad, show the animated Generating pipeline.
     if (_planning) {
       return GeneratingScreen(
@@ -175,6 +192,8 @@ class _HomeScreenState extends State<HomeScreen> {
               _Header(
                 onOpenSettings: widget.onOpenSettings,
                 onSignIn: widget.onSignIn,
+                onPricing: () => setState(() => _showPricing = true),
+                onInvite: () => setState(() => _showInvite = true),
               ),
               if (_update != null) ...[
                 const SizedBox(height: 16),
@@ -214,9 +233,16 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.onOpenSettings, this.onSignIn});
+  const _Header({
+    required this.onOpenSettings,
+    this.onSignIn,
+    this.onPricing,
+    this.onInvite,
+  });
   final VoidCallback onOpenSettings;
   final VoidCallback? onSignIn;
+  final VoidCallback? onPricing;
+  final VoidCallback? onInvite;
 
   @override
   Widget build(BuildContext context) {
@@ -251,22 +277,20 @@ class _Header extends StatelessWidget {
             fontSize: 18,
           ),
         ),
-        const SizedBox(width: 11),
-        Container(
-          padding: const EdgeInsets.only(left: 11),
-          decoration: const BoxDecoration(
-            border: Border(left: BorderSide(color: AppColors.borderSoft)),
-          ),
-          child: Text(
-            'AI AD STUDIO',
-            style: AppTheme.mono.copyWith(
-              color: AppColors.textFaint,
-              fontSize: 11,
-              letterSpacing: 1.0,
-            ),
-          ),
-        ),
         const Spacer(),
+        if (onInvite != null)
+          TextButton(
+            onPressed: onInvite,
+            child: const Text('Invite',
+                style: TextStyle(color: AppColors.textMuted)),
+          ),
+        if (onPricing != null)
+          TextButton(
+            onPressed: onPricing,
+            child: const Text('Pricing',
+                style: TextStyle(color: AppColors.textMuted)),
+          ),
+        const SizedBox(width: 4),
         if (onSignIn != null) ...[
           TextButton(
             onPressed: onSignIn,

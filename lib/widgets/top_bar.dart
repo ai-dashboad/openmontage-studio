@@ -19,6 +19,7 @@ class TopBar extends StatelessWidget {
     this.onHome,
     this.onOpenSettings,
     this.onRender,
+    this.onExport,
   });
 
   final String projectName;
@@ -37,6 +38,7 @@ class TopBar extends StatelessWidget {
   final VoidCallback? onHome;
   final VoidCallback? onOpenSettings;
   final VoidCallback? onRender;
+  final VoidCallback? onExport;
 
   @override
   Widget build(BuildContext context) {
@@ -59,16 +61,7 @@ class TopBar extends StatelessWidget {
             tooltip: 'Home',
             visualDensity: VisualDensity.compact,
           ),
-          const SizedBox(width: 4),
-          const Text(
-            'OpenMontage',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w600,
-              fontSize: 15,
-            ),
-          ),
-          const SizedBox(width: 20),
+          const SizedBox(width: 8),
           Flexible(child: _ProjectChip(name: projectName)),
           if (onToggleFocus != null) ...[
             const SizedBox(width: 14),
@@ -119,6 +112,18 @@ class TopBar extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             ),
           ),
+          if (onExport != null) ...[
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              onPressed: onExport,
+              icon: const Icon(Icons.download, size: 16),
+              label: const Text('Export'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.accent2,
+                side: const BorderSide(color: AppColors.borderStrong),
+              ),
+            ),
+          ],
           const SizedBox(width: 8),
           IconButton(
             onPressed: onOpenSettings,

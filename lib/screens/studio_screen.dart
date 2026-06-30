@@ -22,6 +22,7 @@ import '../widgets/preview_stage.dart';
 import '../widgets/render_dialog.dart';
 import '../widgets/storyboard_rail.dart';
 import '../widgets/timeline.dart';
+import '../widgets/export_modal.dart';
 import '../widgets/top_bar.dart';
 
 /// The studio-first main editor. Owns the state that links the timeline,
@@ -546,6 +547,13 @@ class _StudioScreenState extends State<StudioScreen>
         });
   }
 
+  /// Opens the design's Export paywall modal; either tier proceeds to render.
+  Future<void> _showExport() async {
+    final tier = await showExportModal(context);
+    if (tier == null || !mounted) return;
+    await _openRender();
+  }
+
   Future<void> _openRender() async {
     // Guests must sign in to render (rendering is the metered action). Prompt
     // on demand; if they cancel, don't render.
@@ -877,6 +885,7 @@ class _StudioScreenState extends State<StudioScreen>
             onHome: widget.onHome,
             onOpenSettings: widget.onOpenSettings,
             onRender: _openRender,
+            onExport: _showExport,
           ),
           Expanded(
             child: Row(
