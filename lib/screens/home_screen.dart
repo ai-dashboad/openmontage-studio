@@ -7,6 +7,7 @@ import '../services/provider_manager.dart';
 import '../services/update_checker.dart';
 import '../theme/app_theme.dart';
 import '../widgets/aurora_background.dart';
+import 'generating_screen.dart';
 
 /// The launcher: a brief composer to start a video, a live engine status, and
 /// recent renders. This is the "what can you do" entry point.
@@ -47,6 +48,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _brief = TextEditingController();
   bool _planning = false;
+  bool _cancelled = false;
   UpdateInfo? _update;
   List<StudioProject> _projects = const [];
 
@@ -89,18 +91,29 @@ class _HomeScreenState extends State<HomeScreen> {
       widget.onOpenProject(null, null);
       return;
     }
-    setState(() => _planning = true);
+    setState(() {
+      _cancelled = false;
+      _planning = true;
+    });
     try {
       final scenes = await widget.agent.planScenes('$brief$suffix');
-      if (!mounted) return;
+      if (!mounted || _cancelled) return;
       widget.onOpenProject(scenes, brief);
     } catch (_) {
       // Agent unreachable or unparseable — fall back to the sample plan.
-      if (!mounted) return;
+      if (!mounted || _cancelled) return;
       widget.onOpenProject(null, brief);
     } finally {
       if (mounted) setState(() => _planning = false);
     }
+  }
+
+  /// Abandons an in-flight generation and returns to the Brief.
+  void _cancelGenerate() {
+    setState(() {
+      _cancelled = true;
+      _planning = false;
+    });
   }
 
   /// One-click start from an example prompt.
@@ -112,6 +125,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // While the agent plans the ad, show the animated Generating pipeline.
+    if (_planning) {
+      return GeneratingScreen(
+        promptEcho: _brief.text.trim(),
+        onCancel: _cancelGenerate,
+      );
+    }
     return Scaffold(
       backgroundColor: AppColors.app,
       body: AuroraBackground(
