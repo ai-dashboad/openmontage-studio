@@ -9,21 +9,24 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._();
 
-  // --- Open Montage palette ---
-  static const Color app = Color(0xFF0E0E14); // --app
-  static const Color panel1 = Color(0xFF16161E); // --p1
-  static const Color panel2 = Color(0xFF1D1D27); // --p2
-  static const Color panel3 = Color(0xFF26262F); // --p3
-  static const Color borderSoft = Color(0xFF2A2A36); // --bd
-  static const Color borderStrong = Color(0xFF3A3A48); // --bd2
-  static const Color accent = Color(0xFF6366F1); // --ac (indigo)
-  static const Color accent2 = Color(0xFF8B8DF3); // --ac2
+  // --- Open Montage palette (exact tokens from the Flow design :root) ---
+  static const Color app = Color(0xFF07070C); // --bg
+  static const Color bg2 = Color(0xFF0D0D16); // --bg2
+  // Glass panels in the design are translucent white over the aurora; these are
+  // faithful opaque approximations layered on the #07070c base.
+  static const Color panel1 = Color(0xFF111118); // glass
+  static const Color panel2 = Color(0xFF181820); // glass2
+  static const Color panel3 = Color(0xFF22222C);
+  static const Color borderSoft = Color(0xFF1C1C24); // --line
+  static const Color borderStrong = Color(0xFF2E2E3A); // --line2
+  static const Color accent = Color(0xFF6366F1); // --ind
+  static const Color accent2 = Color(0xFF8B8DF3); // --ind2
   static const Color accentViolet = Color(0xFFA855F7); // --vio
   static const Color accentSky = Color(0xFF38BDF8); // --cya
 
-  static const Color textPrimary = Color(0xFFECECF0); // --tx
-  static const Color textMuted = Color(0xFF9696A8); // --mut
-  static const Color textFaint = Color(0xFF646476); // --dim
+  static const Color textPrimary = Color(0xFFF4F4F8); // --tx
+  static const Color textMuted = Color(0xFFA9A9BD); // --mut
+  static const Color textFaint = Color(0xFF62627A); // --dim
 
   /// Semantic status colors (kept distinct from the indigo accent).
   static const Color accentAmber = Color(0xFFF59E0B);
