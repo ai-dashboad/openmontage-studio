@@ -699,6 +699,19 @@ class _ScenesTab extends StatefulWidget {
 class _ScenesTabState extends State<_ScenesTab> {
   late final TextEditingController _headline;
   late final TextEditingController _subtitle;
+  late final TextEditingController _title;
+
+  /// Selectable render types + friendly labels.
+  static const List<(String, String)> _types = [
+    ('hero_title', 'Hero title'),
+    ('stat_card', 'Stat'),
+    ('bar_chart', 'Bar chart'),
+    ('pie_chart', 'Pie chart'),
+    ('text_card', 'Text'),
+    ('footage_clip', 'Footage'),
+    ('ai_video', 'AI video'),
+    ('presenter', 'Presenter'),
+  ];
 
   static const List<Color> _accentChoices = [
     AppColors.accent,
@@ -714,6 +727,7 @@ class _ScenesTabState extends State<_ScenesTab> {
     super.initState();
     _headline = TextEditingController(text: widget.scene.headline);
     _subtitle = TextEditingController(text: widget.scene.subtitle);
+    _title = TextEditingController(text: widget.scene.title);
   }
 
   @override
@@ -725,13 +739,49 @@ class _ScenesTabState extends State<_ScenesTab> {
     if (widget.scene.subtitle != _subtitle.text) {
       _subtitle.text = widget.scene.subtitle;
     }
+    if (widget.scene.title != _title.text) {
+      _title.text = widget.scene.title;
+    }
   }
 
   @override
   void dispose() {
     _headline.dispose();
     _subtitle.dispose();
+    _title.dispose();
     super.dispose();
+  }
+
+  /// A dropdown to change the scene's render type.
+  Widget _typePicker() {
+    final current = widget.scene.type;
+    final ids = _types.map((t) => t.$1).toList();
+    final value = ids.contains(current) ? current : _types.first.$1;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.25),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.borderStrong),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: value,
+          isExpanded: true,
+          isDense: true,
+          dropdownColor: AppColors.panel3,
+          icon: const Icon(Icons.expand_more, size: 16, color: AppColors.textMuted),
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+          items: [
+            for (final t in _types)
+              DropdownMenuItem(value: t.$1, child: Text('${t.$2} · editing')),
+          ],
+          onChanged: (v) {
+            if (v != null) widget.onSceneChanged(widget.scene.copyWith(type: v));
+          },
+        ),
+      ),
+    );
   }
 
   @override
@@ -836,19 +886,14 @@ class _ScenesTabState extends State<_ScenesTab> {
                 ),
               ),
               const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  '${widget.scene.type} · editing',
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
+              Expanded(child: _typePicker()),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
+          _textField('Title (kind)', _title, (v) {
+            widget.onSceneChanged(widget.scene.copyWith(title: v));
+          }, fieldKey: const Key('inspectorTitle')),
+          const SizedBox(height: 10),
           _textField('Headline', _headline, (v) {
             widget.onSceneChanged(widget.scene.copyWith(headline: v));
           }, fieldKey: const Key('inspectorHeadline')),
