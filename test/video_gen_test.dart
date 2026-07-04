@@ -64,6 +64,33 @@ void main() {
     expect(File(clip!.path).existsSync(), isTrue);
   });
 
+  test('Runway uses image_to_video when a first frame is supplied', () async {
+    final img = File('${Directory.systemTemp.path}/om_test_init.png')
+      ..writeAsBytesSync(_bytes);
+    String? postedPath;
+    final src = RunwayVideoSource(
+      httpClient: MockClient((req) async {
+        if (req.method == 'POST') {
+          postedPath = req.url.path;
+          final b = jsonDecode(req.body) as Map<String, dynamic>;
+          expect(b['promptImage'], startsWith('data:image/png;base64,'));
+          return http.Response(jsonEncode({'id': 't'}), 200);
+        }
+        if (req.url.path.contains('/tasks/t')) {
+          return http.Response(
+            jsonEncode({'status': 'SUCCEEDED', 'output': ['https://x/o.mp4']}),
+            200,
+          );
+        }
+        return http.Response.bytes(_bytes, 200);
+      }),
+    );
+    final clip = await src.generate('animate her',
+        key: 'k', initImagePath: img.path, pollInterval: Duration.zero);
+    expect(postedPath, endsWith('/image_to_video'));
+    expect(clip, isNotNull);
+  });
+
   test('local video decodes a base64 clip, no key', () async {
     final src = LocalVideoSource(
       httpClient: MockClient(

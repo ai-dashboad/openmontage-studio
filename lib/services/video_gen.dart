@@ -105,13 +105,24 @@ class VeoVideoSource implements VideoSource {
     Duration maxWait = const Duration(minutes: 8),
   }) async {
     if (key.isEmpty || prompt.trim().isEmpty) return null;
+    // Image-to-video: seed the first frame from the supplied photo.
+    final initB64 = initImagePath.isNotEmpty && File(initImagePath).existsSync()
+        ? base64Encode(await File(initImagePath).readAsBytes())
+        : null;
     final submit = await _http
         .post(
           Uri.parse('$_base/models/$model:predictLongRunning?key=$key'),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
             'instances': [
-              {'prompt': prompt},
+              {
+                'prompt': prompt,
+                if (initB64 != null)
+                  'image': {
+                    'bytesBase64Encoded': initB64,
+                    'mimeType': 'image/png',
+                  },
+              },
             ],
             'parameters': {'aspectRatio': '16:9'},
           }),
@@ -181,15 +192,23 @@ class RunwayVideoSource implements VideoSource {
       'X-Runway-Version': _version,
       'Content-Type': 'application/json',
     };
+    // Image-to-video (Gen-4) when a first frame is supplied, else text-to-video.
+    final hasInit = initImagePath.isNotEmpty && File(initImagePath).existsSync();
+    final endpoint = hasInit ? 'image_to_video' : 'text_to_video';
+    final body = <String, dynamic>{
+      'promptText': prompt,
+      'model': 'gen4_turbo',
+      'ratio': '1280:720',
+    };
+    if (hasInit) {
+      final b64 = base64Encode(await File(initImagePath).readAsBytes());
+      body['promptImage'] = 'data:image/png;base64,$b64';
+    }
     final submit = await _http
         .post(
-          Uri.parse('$_base/text_to_video'),
+          Uri.parse('$_base/$endpoint'),
           headers: headers,
-          body: jsonEncode({
-            'promptText': prompt,
-            'model': 'gen4_turbo',
-            'ratio': '1280:720',
-          }),
+          body: jsonEncode(body),
         )
         .timeout(const Duration(seconds: 30));
     if (submit.statusCode != 200 && submit.statusCode != 201) {
@@ -242,11 +261,14 @@ class LocalVideoSource implements VideoSource {
     Duration maxWait = const Duration(minutes: 8),
   }) async {
     if (prompt.trim().isEmpty) return null;
+    final initB64 = initImagePath.isNotEmpty && File(initImagePath).existsSync()
+        ? base64Encode(await File(initImagePath).readAsBytes())
+        : null;
     final res = await _http
         .post(
           Uri.parse('$_endpoint/generate'),
           headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({'prompt': prompt}),
+          body: jsonEncode({'prompt': prompt, 'init_image': ?initB64}),
         )
         .timeout(maxWait);
     if (res.statusCode != 200) {
